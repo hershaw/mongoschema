@@ -14,15 +14,7 @@ Currently only tested with python 2.7. No idea if it works with anything else, b
 
 # Installation
 
-Install pymongo
-
-    pip install pymongo
-    
-Clone this repo and add it to your path
-
-    git clone git@github.com:hershaw/mongoschema.git
-
-    export PYTHONPATH=$PYTHONPATH:$PATH_TO_MONGOSCHEMA_YOU_JUST_CLONED
+    pip install git+git://github.com/hershaw/mongoschema.git@master#egg=mongoschema
 
 # Usage
 
