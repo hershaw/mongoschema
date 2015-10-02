@@ -16,6 +16,10 @@ Currently only tested with python 2.7. No idea if it works with anything else, b
 
     pip install git+git://github.com/hershaw/mongoschema.git@master#egg=mongoschema
 
+# Update
+
+    pip install git+git://github.com/hershaw/mongoschema.git@master#egg=mongoschema --upgrade
+
 # Usage
 
 ## Step 1: Define the schema
