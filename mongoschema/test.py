@@ -124,11 +124,11 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             p.sort_stats('cumtime')
             p.print_stats()
 
-    def _create_user(self):
-        return User.create(username=u'this is a test')
+    def _create_user(self, username=u'this is a test'):
+        return User.create(username=username)
 
     def _create_email(self, user):
-        return Email.create(user=user.id, subject=u'subject', body=u'body')
+        return Email.create(user=user, subject=u'subject', body=u'body')
 
     def _get_field_from_db(self, doc, field):
         raw_doc = doc.ms.collection.find_one({'_id': doc.id})
@@ -177,6 +177,15 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         index_info = Email.collection.index_information()
         self.assertTrue(u'subject_-1_body_-1' in index_info)
 
+    def test_set_mongoschema(self):
+        user = self._create_user()
+        email = self._create_email(user)
+        self.assertTrue(user is email.user)
+        other_user = self._create_user(username=u'another')
+        email.user = other_user
+        email.save()
+        self.assertTrue(email.user is other_user)
+
     def test_reference(self):
         user = self._create_user()
         email = self._create_email(user)
@@ -186,7 +195,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         email.user.username = u'a new name'
         self.assertEqual(email.user.username, user.username)
         email.user.save()
-        self._compare_with_db(user, 'username')
+        self._compare_with_db(user, u'username')
 
     def test_schemaless_embeded_doc(self):
         data = {'testing': 'nothing', 'hellow': 'world'}
@@ -214,7 +223,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         user1 = User.create(username=u'bob')
         user2 = User.create(username=u'sally')
         with_list = SchemaWithList.create(
-            users=[user1.id, user2.id],
+            users=[user1, user2],
             numbers=[1, 2, 3]
         )
         self.assertTrue(with_list.users[0] is user1)

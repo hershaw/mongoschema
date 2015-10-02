@@ -78,7 +78,7 @@ class MongoDoc(object):
 
     def __getattr__(self, key):
         mf = self.ms.schema[key]
-        if type(mf) == list:
+        if type(mf) in LIST_TYPES:
             if issubclass(mf[0].type, MongoSchema):
                 return MongoDocRefList(
                     [mf[0].type.get(id=x) for x in self.doc[key]],
@@ -97,12 +97,7 @@ class MongoDoc(object):
             super(MongoDoc, self).__setattr__(key, value)
         elif key in self.ms.schema:
             mf = self.ms.schema[key]
-            if type(mf) in LIST_TYPES and issubclass(mf[0].type, MongoSchema):
-                # so the user can pass in an actual instance
-                value = [x.id for x in value]
-            elif mf.references:
-                value = value.id
-            self.doc[key] = value
+            self.doc[key] = MongoSchema._deref_if_needed(mf, value)
         else:
             raise KeyError(key)
 
@@ -139,13 +134,12 @@ class MongoDoc(object):
 class MongoField(object):
 
     def __init__(self, type, default=NoDefault, default_func=None,
-                 required=True, references=None, allowed_vals=None,
+                 required=True, allowed_vals=None,
                  validate_regexp=None):
         self.type = type
         self.default = default
         self.default_func = default_func
         self.required = required
-        self.references = references
         self.allowed_vals = allowed_vals
         self.validate_init()
         self.validate_regexp = validate_regexp
@@ -252,8 +246,10 @@ class MongoSchema(object):
 
     @classmethod
     def _check_entry_type(cls, key, entry, mf):
-        if issubclass(mf.type, MongoSchema) and type(entry) is ObjectId:
-            pass
+        if issubclass(mf.type, MongoSchema):
+            if not type(entry) is ObjectId:
+                raise ValidationError(
+                    'Expected an ObjectId got %s' % type(entry))
         elif not isinstance(entry, mf.type):
             raise ValidationError(
                 '%s.%s: Expected type %s, got %s' % (
@@ -283,6 +279,13 @@ class MongoSchema(object):
                 raise ValidationError(
                     '"%s" does not match pattern: %s for key %s' % (
                         doc[key], regexp.pattern, key))
+
+    @classmethod
+    def _basic_schema_validation(cls, doc):
+        for key in doc:
+            if key not in cls.schema:
+                raise ValidationError(
+                    'Unknown key %s in %s' % (key, cls))
 
     @classmethod
     def _validate(cls, doc, schema=None):
@@ -330,9 +333,33 @@ class MongoSchema(object):
         return mdoc
 
     @classmethod
+    def _deref_if_needed(cls, mf, value):
+        if type(mf) in LIST_TYPES and issubclass(mf[0].type, MongoSchema):
+            # so the user can pass in an actual instance
+            value = [x.id for x in value]
+        elif type(mf) in LIST_TYPES:
+            # it's just a list with regular types
+            pass
+        elif type(mf) is dict:
+            # just a regular dictionary
+            pass
+        elif issubclass(mf.type, MongoSchema):
+            value = value.id
+        return value
+
+    @classmethod
+    def _fix_references(cls, doc):
+        for key in doc:
+            if key == 'id':
+                continue
+            doc[key] = cls._deref_if_needed(cls.schema[key], doc[key])
+
+    @classmethod
     def create(cls, **doc):
         cls._init()
         cls._fill_defaults(doc)
+        cls._basic_schema_validation(doc)
+        cls._fix_references(doc)
         cls._writedoc(doc, 'insert')
         mdoc = cls.doc_class(doc, cls)
         return cls.add_to_cache(mdoc)
@@ -352,7 +379,7 @@ class MongoSchema(object):
 
     @classmethod
     def _fordb(cls, doc):
-        return cls._fordb_fix_id(doc)
+        cls._fordb_fix_id(doc)
 
     @classmethod
     def _fix_int_float(cls, doc):
