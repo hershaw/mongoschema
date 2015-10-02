@@ -12,7 +12,6 @@ import cProfile, pstats
 WITH_PROFILE = False
 
 
-
 conn = pymongo.MongoClient()
 TEST_DB_NAME = os.environ['TEST_DB_NAME']
 db = conn[TEST_DB_NAME]
@@ -63,7 +62,7 @@ class Farmer(User):
 class Email(MongoSchema):
     collection = db.email
     schema = {
-        'user': MF(ObjectId, references=User),
+        'user': MF(User),
         'subject': MF(unicode),
         'body': MF(unicode),
     }
@@ -93,7 +92,7 @@ class EmbedDocWithValidation(MongoSchema):
 class SchemaWithList(MongoSchema):
     collection = db.with_list
     schema = {
-        'users': [MF(ObjectId, references=User)],
+        'users': [MF(User)],
         'numbers': [MF(int)],
     }
     indexes = [

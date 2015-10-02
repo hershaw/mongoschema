@@ -79,15 +79,15 @@ class MongoDoc(object):
     def __getattr__(self, key):
         mf = self.ms.schema[key]
         if type(mf) == list:
-            if isinstance(mf[0], MongoField) and mf[0].references:
+            if issubclass(mf[0].type, MongoSchema):
                 return MongoDocRefList(
-                    [mf[0].references.get(id=x) for x in self.doc[key]],
+                    [mf[0].type.get(id=x) for x in self.doc[key]],
                     self.doc[key])
             return self.doc[key]
         elif type(mf) == dict:
             pass
-        elif mf.references:
-            return mf.references.get(id=self.doc[key])
+        elif issubclass(mf.type, MongoSchema):
+            return mf.type.get(id=self.doc[key])
         elif not mf.required and key not in self.doc:
             return NoValue()
         return self.doc[key]
@@ -96,6 +96,12 @@ class MongoDoc(object):
         if key in ['ms', 'doc']:
             super(MongoDoc, self).__setattr__(key, value)
         elif key in self.ms.schema:
+            mf = self.ms.schema[key]
+            if type(mf) in LIST_TYPES and issubclass(mf[0].type, MongoSchema):
+                # so the user can pass in an actual instance
+                value = [x.id for x in value]
+            elif mf.references:
+                value = value.id
             self.doc[key] = value
         else:
             raise KeyError(key)
@@ -246,7 +252,9 @@ class MongoSchema(object):
 
     @classmethod
     def _check_entry_type(cls, key, entry, mf):
-        if not isinstance(entry, mf.type):
+        if issubclass(mf.type, MongoSchema) and type(entry) is ObjectId:
+            pass
+        elif not isinstance(entry, mf.type):
             raise ValidationError(
                 '%s.%s: Expected type %s, got %s' % (
                     cls.__name__, key, mf.type, type(entry)))
