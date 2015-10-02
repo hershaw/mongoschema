@@ -2,6 +2,7 @@
 import datetime
 import time
 import json
+import inspect
 
 # 3rd party
 from bson.objectid import ObjectId
@@ -401,6 +402,7 @@ class MongoSchema(object):
     @classmethod
     def get(cls, **kwargs):
         cls._init()
+        cls._mongodoc_to_id(kwargs)
         if 'id' in kwargs and kwargs['id'] in cls.cache:
             return cls.cache[kwargs['id']]
         cls._fordb_fix_id(kwargs, forquery=True)
@@ -414,8 +416,17 @@ class MongoSchema(object):
             return cls.add_to_cache(mdoc)
 
     @classmethod
+    def _mongodoc_to_id(cls, query):
+        for key in query:
+            obj = query[key]
+            if issubclass(type(obj), MongoDoc):
+                query[key] = obj.id
+
+    @classmethod
     def find(cls, sort=None, **kwargs):
+        # re-reference it for the id
         cls._init()
+        cls._mongodoc_to_id(kwargs)
         docs = cls.collection.find(kwargs)
         if sort:
             docs.sort(*sort)

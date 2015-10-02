@@ -197,6 +197,16 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         email.user.save()
         self._compare_with_db(user, u'username')
 
+    def test_reference_query(self):
+        user = self._create_user()
+        email = self._create_email(user)
+        MongoSchema.clear_cache_and_init()
+        email_from_query = Email.get(user=user)
+        self.assertTrue(email.id == email_from_query.id)
+        MongoSchema.clear_cache_and_init()
+        email_from_find = [x for x in Email.find(user=user)][0]
+        self.assertTrue(email.id == email_from_find.id)
+
     def test_schemaless_embeded_doc(self):
         data = {'testing': 'nothing', 'hellow': 'world'}
         doc = EmbedDoc.create(data=data)
