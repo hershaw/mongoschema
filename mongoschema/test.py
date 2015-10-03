@@ -353,5 +353,13 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         for user in users_from_db:
             self.assertTrue(user in users)
 
+    def test_remove(self):
+        users = []
+        for i in range(0, 10):
+            users.append(self._create_user(username=u'%s' % i))
+        for user in users:
+            user.remove()
+        self.assertTrue(len(User.list()) == 0)
+
 if __name__ == '__main__':
     unittest.main()

@@ -445,7 +445,7 @@ class MongoSchema(object):
         if '_id' not in kwargs and 'id' in kwargs:
             kwargs['_id'] = kwargs['id']
             del kwargs['id']
-        for doc in cls.collection.find(kwargs, only={'_id': True}):
+        for doc in cls.collection.find(kwargs, projection={'_id': True}):
             docs = cls.collection.remove(doc)
             if doc['_id'] in cls.cache:
                 del cls.cache[doc['_id']]
