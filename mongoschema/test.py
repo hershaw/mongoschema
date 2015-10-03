@@ -344,5 +344,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertEqual(raw_doc[field], getattr(doc, field))
         return raw_doc
 
+    def test_list(self):
+        users = []
+        for i in range(0, 10):
+            users.append(self._create_user(username=u'%s' % i))
+        MongoSchema.clear_cache_and_init()
+        users_from_db = User.list()
+        for user in users_from_db:
+            self.assertTrue(user in users)
+
 if __name__ == '__main__':
     unittest.main()

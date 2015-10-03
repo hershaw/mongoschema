@@ -116,6 +116,9 @@ class MongoDoc(object):
                           indent=4, separators=(',', ': '),
                           cls=MongoEncoder)
 
+    def __eq__(self, other):
+        return self.id == other.id
+
     def save(self):
         self.ms._writedoc(self.doc, 'update')
 
@@ -432,6 +435,10 @@ class MongoSchema(object):
             docs.sort(*sort)
         for doc in docs:
             yield cls._fromdb(doc)
+
+    @classmethod
+    def list(cls, sort=None, **kwargs):
+        return [x for x in cls.find(sort=sort, **kwargs)]
 
     @classmethod
     def remove(cls, **kwargs):
