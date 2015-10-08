@@ -367,5 +367,15 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         user_again = User.get(id=user.id)
         self.assertTrue(user is not user_again)
 
+    def test_todict(self):
+        email = self._create_email(self._create_user())
+        email_dict = email.to_dict()
+        self.assertTrue(type(email_dict['user']) is ObjectId)
+        Email.todict_follow_references = True
+        email_dict = email.to_dict()
+        self.assertTrue(type(email_dict['user']) is dict)
+        # now set it back for the rest of the tests
+        Email.todict_follow_references = False
+
 if __name__ == '__main__':
     unittest.main()

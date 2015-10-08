@@ -9,6 +9,7 @@ import os
 from bson.objectid import ObjectId
 
 LIST_TYPES = (list, tuple)
+CACHE_ENABLED = os.environ.get('MONGOSCHEMA_CACHE_ENABLED', 'True') == 'True'
 
 
 class MongoEncoder(json.JSONEncoder):
@@ -135,6 +136,18 @@ class MongoDoc(object):
     def __unicode__(self):
         return unicode(self.__str__())
 
+    def to_dict(self):
+        if not self.ms.todict_follow_references:
+            return self.doc
+        else:
+            copy = {}
+            for key in self.doc:
+                if issubclass(self.ms.schema[key].type, MongoSchema):
+                    copy[key] = getattr(self, key).to_dict()
+                else:
+                    copy[key] = self.doc[key]
+        return copy
+
 
 class MongoField(object):
 
@@ -168,6 +181,7 @@ class MongoField(object):
     def has_default(self):
         return self.default is not NoDefault
 
+
 class MongoSchemaWatcher(type):
     """
     This is to execute code after an instance of MongoSchema is subclassed by
@@ -181,7 +195,6 @@ class MongoSchemaWatcher(type):
         cls._init()
         super(MongoSchemaWatcher, cls).__init__(name, bases, clsdict)
 
-CACHE_ENABLED = os.environ.get('MONGOSCHEMA_CACHE_ENABLED', 'True') == 'True'
 
 class MongoSchema(object):
 
@@ -195,6 +208,7 @@ class MongoSchema(object):
     indexes = []
     cache = None
     doc_class = MongoDoc
+    todict_follow_references = False
 
 
     @classmethod
