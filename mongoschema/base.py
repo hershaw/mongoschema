@@ -142,7 +142,7 @@ class MongoDoc(object):
         else:
             copy = {}
             for key in self.doc:
-                if issubclass(self.ms.schema[key].type, MongoSchema):
+                if issubclass(type(self.ms.schema[key]), MongoSchema):
                     copy[key] = getattr(self, key).to_dict()
                 else:
                     copy[key] = self.doc[key]
