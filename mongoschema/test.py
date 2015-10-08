@@ -114,6 +114,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             self.pr = cProfile.Profile()
             self.pr.enable()
         MongoSchema.clear_cache_and_init()
+        MongoSchema.enable_cache()
 
     def tearDown(self):
         conn.drop_database(TEST_DB_NAME)
@@ -359,6 +360,12 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         for user in users:
             user.remove()
         self.assertTrue(len(User.list()) == 0)
+
+    def test_disabled_cache(self):
+        MongoSchema.disable_cache()
+        user = self._create_user()
+        user_again = User.get(id=user.id)
+        self.assertTrue(user is not user_again)
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,7 @@ import datetime
 import time
 import json
 import inspect
+import os
 
 # 3rd party
 from bson.objectid import ObjectId
@@ -180,6 +181,7 @@ class MongoSchemaWatcher(type):
         cls._init()
         super(MongoSchemaWatcher, cls).__init__(name, bases, clsdict)
 
+CACHE_ENABLED = os.environ.get('MONGOSCHEMA_CACHE_ENABLED', 'True') == 'True'
 
 class MongoSchema(object):
 
@@ -200,6 +202,25 @@ class MongoSchema(object):
         cls._ensureindexes()
         cls._initschema()
         cls.cache = {}
+
+    @classmethod
+    def _check_set_caching(cls):
+        if cls is not MongoSchema:
+            raise Exception('Cannot set caching on a per collection basis')
+
+    @classmethod
+    def _set_cache(cls, enabled_or_disabled):
+        global CACHE_ENABLED
+        cls._check_set_caching()
+        CACHE_ENABLED = enabled_or_disabled
+
+    @classmethod
+    def enable_cache(cls):
+        cls._set_cache(True)
+
+    @classmethod
+    def disable_cache(cls):
+        cls._set_cache(False)
 
     @classmethod
     def clear_cache_and_init(cls):
@@ -334,6 +355,8 @@ class MongoSchema(object):
 
     @classmethod
     def add_to_cache(cls, mdoc):
+        if not CACHE_ENABLED:
+            raise ValueError('Cannot cache when disabled')
         cls.cache[mdoc.id] = mdoc
         return mdoc
 
@@ -366,7 +389,10 @@ class MongoSchema(object):
         cls._fix_references(doc)
         cls._writedoc(doc, 'insert')
         mdoc = cls.doc_class(doc, cls)
-        return cls.add_to_cache(mdoc)
+        if CACHE_ENABLED:
+            return cls.add_to_cache(mdoc)
+        else:
+            return mdoc
 
     @classmethod
     def _fromdb_fix_id(cls, doc):
@@ -405,17 +431,19 @@ class MongoSchema(object):
     @classmethod
     def get(cls, **kwargs):
         cls._mongodoc_to_id(kwargs)
-        if 'id' in kwargs and kwargs['id'] in cls.cache:
-            return cls.cache[kwargs['id']]
+        if CACHE_ENABLED:
+            if 'id' in kwargs and kwargs['id'] in cls.cache:
+                return cls.cache[kwargs['id']]
         cls._fordb_fix_id(kwargs, forquery=True)
         doc = cls.collection.find_one(kwargs)
         if not doc:
             return None
         mdoc = cls._fromdb(doc)
-        if mdoc.id in cls.cache:
-            return cls.cache[mdoc.id]
-        else:
-            return cls.add_to_cache(mdoc)
+        if CACHE_ENABLED:
+            if mdoc.id in cls.cache:
+                return cls.cache[mdoc.id]
+            else:
+                return cls.add_to_cache(mdoc)
 
     @classmethod
     def _mongodoc_to_id(cls, query):
@@ -445,5 +473,6 @@ class MongoSchema(object):
             del kwargs['id']
         for doc in cls.collection.find(kwargs, projection={'_id': True}):
             docs = cls.collection.remove(doc)
-            if doc['_id'] in cls.cache:
-                del cls.cache[doc['_id']]
+            if CACHE_ENABLED:
+                if doc['_id'] in cls.cache:
+                    del cls.cache[doc['_id']]
