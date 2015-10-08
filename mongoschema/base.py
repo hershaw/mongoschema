@@ -441,9 +441,10 @@ class MongoSchema(object):
         mdoc = cls._fromdb(doc)
         if CACHE_ENABLED:
             if mdoc.id in cls.cache:
-                return cls.cache[mdoc.id]
+                cls.cache[mdoc.id]
             else:
-                return cls.add_to_cache(mdoc)
+                cls.add_to_cache(mdoc)
+        return mdoc
 
     @classmethod
     def _mongodoc_to_id(cls, query):
