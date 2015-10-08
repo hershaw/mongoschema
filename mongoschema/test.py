@@ -114,7 +114,6 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             self.pr = cProfile.Profile()
             self.pr.enable()
         MongoSchema.clear_cache_and_init()
-        conn.drop_database(TEST_DB_NAME)
 
     def tearDown(self):
         conn.drop_database(TEST_DB_NAME)

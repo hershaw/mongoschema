@@ -191,7 +191,7 @@ class MongoSchema(object):
     }
     pkey = '_id'
     indexes = []
-    cache = {}
+    cache = None
     doc_class = MongoDoc
 
 
@@ -199,12 +199,13 @@ class MongoSchema(object):
     def _init(cls):
         cls._ensureindexes()
         cls._initschema()
+        cls.cache = {}
 
     @classmethod
     def clear_cache_and_init(cls):
         all_classes = cls._get_all_classes()
         for aclass in all_classes:
-            aclass.cache = {}
+            aclass._init()
 
     @classmethod
     def _get_all_classes(cls):
@@ -360,7 +361,6 @@ class MongoSchema(object):
 
     @classmethod
     def create(cls, **doc):
-        cls._init()
         cls._fill_defaults(doc)
         cls._basic_schema_validation(doc)
         cls._fix_references(doc)
@@ -404,7 +404,6 @@ class MongoSchema(object):
 
     @classmethod
     def get(cls, **kwargs):
-        cls._init()
         cls._mongodoc_to_id(kwargs)
         if 'id' in kwargs and kwargs['id'] in cls.cache:
             return cls.cache[kwargs['id']]
@@ -428,7 +427,6 @@ class MongoSchema(object):
     @classmethod
     def find(cls, sort=None, **kwargs):
         # re-reference it for the id
-        cls._init()
         cls._mongodoc_to_id(kwargs)
         docs = cls.collection.find(kwargs)
         if sort:
