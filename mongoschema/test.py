@@ -59,6 +59,13 @@ class Farmer(User):
     ]
 
 
+class UserWithOptionalReference(MongoSchema):
+    collection = db.user
+    schema = {
+        'farmer': MF(Farmer, required=False),
+    }
+
+
 class Email(MongoSchema):
     collection = db.email
     schema = {
@@ -376,6 +383,15 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertTrue(type(email_dict['user']) is dict)
         # now set it back for the rest of the tests
         Email.todict_follow_references = False
+
+    def test_optional_reference(self):
+        user = UserWithOptionalReference.create()
+        self.assertFalse(user.farmer)
+        farmer = self._create_farmer()
+        user.farmer = farmer
+        user.save()
+        self.assertTrue(user.farmer is farmer)
+
 
 if __name__ == '__main__':
     unittest.main()

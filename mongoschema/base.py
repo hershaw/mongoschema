@@ -90,7 +90,12 @@ class MongoDoc(object):
         elif type(mf) == dict:
             pass
         elif issubclass(mf.type, MongoSchema):
-            return mf.type.get(id=self.doc[key])
+            if mf.required:
+                return mf.type.get(id=self.doc[key])
+            elif key in self.doc:
+                return mf.type.get(id=self.doc[key])
+            else:
+                return NoValue()
         elif not mf.required and key not in self.doc:
             return NoValue()
         return self.doc[key]
@@ -142,7 +147,7 @@ class MongoDoc(object):
         else:
             copy = {}
             for key in self.doc:
-                if issubclass(type(self.ms.schema[key]), MongoSchema):
+                if issubclass(self.ms.schema[key].type, MongoSchema):
                     copy[key] = getattr(self, key).to_dict()
                 else:
                     copy[key] = self.doc[key]
@@ -452,12 +457,14 @@ class MongoSchema(object):
         doc = cls.collection.find_one(kwargs)
         if not doc:
             return None
-        mdoc = cls._fromdb(doc)
         if CACHE_ENABLED:
-            if mdoc.id in cls.cache:
-                cls.cache[mdoc.id]
+            if doc['_id'] in cls.cache:
+                mdoc = cls.cache[doc['_id']]
             else:
+                mdoc = cls._fromdb(doc)
                 cls.add_to_cache(mdoc)
+        else:
+            mdoc = cls._fromdb(doc)
         return mdoc
 
     @classmethod
