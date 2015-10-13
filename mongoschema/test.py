@@ -243,6 +243,9 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             users=[user1, user2],
             numbers=[1, 2, 3]
         )
+        # test that following list references behaves correctly
+        SchemaWithList.todict_follow_references = True
+        with_list.to_dict()
         self.assertTrue(with_list.users[0] is user1)
         self.assertTrue(with_list.users[1] is user2)
         with_list.users.pop(0)
