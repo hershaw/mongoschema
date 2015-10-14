@@ -4,6 +4,7 @@ import time
 import json
 import inspect
 import os
+import copy
 
 # 3rd party
 from bson.objectid import ObjectId
@@ -143,17 +144,17 @@ class MongoDoc(object):
 
     def to_dict(self):
         if not self.ms.todict_follow_references:
-            return self.doc
+            return copy.deepcopy(self.doc)
         else:
-            copy = {}
+            copy_doc = {}
             for key in self.doc:
                 if type(self.ms.schema[key]) in LIST_TYPES:
-                    copy[key] = self.doc[key]
+                    copy_doc[key] = self.doc[key]
                 elif issubclass(self.ms.schema[key].type, MongoSchema):
-                    copy[key] = getattr(self, key).to_dict()
+                    copy_doc[key] = getattr(self, key).to_dict()
                 else:
-                    copy[key] = self.doc[key]
-        return copy
+                    copy_doc[key] = self.doc[key]
+        return copy_doc
 
 
 class MongoField(object):
