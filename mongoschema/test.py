@@ -34,6 +34,18 @@ class User(MongoSchema):
     doc_class = UserDoc
 
 
+class UserWithCacheDisabled(MongoSchema):
+    collection = db.user
+    schema = {
+        'username': MF(unicode),
+    }
+    indexes = [
+        ['username', {'unique': True}],
+    ]
+    doc_class = UserDoc
+    cache_enabled = False
+
+
 class UserAfterChanges(MongoSchema):
     collection = db.user_after_changes
     schema = {
@@ -121,7 +133,6 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             self.pr = cProfile.Profile()
             self.pr.enable()
         MongoSchema.clear_cache_and_init()
-        MongoSchema.enable_cache()
 
     def tearDown(self):
         conn.drop_database(TEST_DB_NAME)
@@ -378,6 +389,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         user = self._create_user()
         user_again = User.get(id=user.id)
         self.assertTrue(user is not user_again)
+        MongoSchema.enable_cache()
 
     def test_todict(self):
         email = self._create_email(self._create_user())
@@ -396,6 +408,23 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         user.farmer = farmer
         user.save()
         self.assertTrue(user.farmer is farmer)
+
+    def test_reload(self):
+        user = self._create_user()
+        new_name = u'filmore'
+        db.user.update({'_id': user.id}, {'$set': {'username': new_name}})
+        self.assertFalse(new_name == user.username)
+        user.reload()
+        self.assertTrue(new_name == user.username)
+
+    def test_cache_disabled(self):
+        user = UserWithCacheDisabled.create(username=u'nothing')
+        fetched_again = UserWithCacheDisabled.get(id=user.id)
+        self.assertTrue(user is not fetched_again)
+        UserWithCacheDisabled.enable_cache()
+        fetched_again = UserWithCacheDisabled.get(id=user.id)
+        fetched_again_again = UserWithCacheDisabled.get(id=user.id)
+        self.assertTrue(fetched_again_again is fetched_again)
 
 
 if __name__ == '__main__':
