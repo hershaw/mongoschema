@@ -443,7 +443,7 @@ class MongoSchema(object):
             return doc
         elif type(doc) is list:
             for i, item in enumerate(doc):
-                doc[i] = cls._fix_dict_keys(doc[i])
+                doc[i] = cls._unfix_dict_keys(doc[i])
             return doc
         else:
             return doc
@@ -455,9 +455,15 @@ class MongoSchema(object):
         but python does so we need to convert to a list before we save
         """
         if type(doc) is dict:
+            bad_key = False
             for key in doc:
                 doc[key] = cls._fix_dict_keys(doc[key])
-            return {'__dict__': doc.items()}
+                if '.' in key or key.startswith('$'):
+                    bad_key = True
+            if bad_key:
+                return {'__dict__': doc.items()}
+            else:
+                return doc
         elif type(doc) is list:
             for i, item in enumerate(doc):
                 doc[i] = cls._fix_dict_keys(doc[i])

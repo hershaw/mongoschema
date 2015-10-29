@@ -455,6 +455,8 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
         self.assertTrue('__dict__' in raw['data'] and len(raw['data']) == 1)
         self.assertTrue(MongoSchema._unfix_dict_keys(raw['data']) == data)
+        self.assertTrue(
+            MongoSchema._unfix_dict_keys(raw['list_data']) == list_data)
         self.assertTrue(type(tmp.data) is dict)
         new_data = {
             u'hello': u'world',
@@ -466,7 +468,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         tmp.save()
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
         self.assertTrue(
-            '__dict__' in raw['data'] and len(raw['data']) == 1)
+            '__dict__' not in raw['data'] and len(raw['data']) == 2)
         self.assertTrue(
             MongoSchema._unfix_dict_keys(raw['data']) == new_data, new_data)
         self.assertTrue(type(tmp.data) is dict)
