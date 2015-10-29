@@ -224,6 +224,8 @@ class MongoSchema(object):
     todict_follow_references = False
     cache_enabled = True
 
+    def __init__(self):
+        raise ValueError('Did you mean to use .create()?')
 
     @classmethod
     def _init(cls):
@@ -429,8 +431,37 @@ class MongoSchema(object):
             del kwargs['id']
 
     @classmethod
+    def _dict_to_list(cls, doc):
+        """
+        Because mongodb doesn't allow '.' to be in document keys
+        but python does so we need to convert to a list before we save
+        """
+        for key in cls.schema:
+            mf = cls.schema[key]
+            if key not in doc or type(mf) is list:
+                # it wasnt required or is a list
+                continue
+            if mf.type is dict:
+                doc[key] = doc[key].items()
+
+    @classmethod
+    def _list_to_dict(cls, doc):
+        """
+        Because mongodb doesn't allow '.' to be in document keys
+        but python does so we need to convert to a list before we save
+        """
+        for key in cls.schema:
+            mf = cls.schema[key]
+            if key not in doc or type(mf) is list:
+                # it wasnt required or is a list
+                continue
+            if mf.type is dict:
+                doc[key] = dict(doc[key])
+
+    @classmethod
     def _fordb(cls, doc):
         cls._fordb_fix_id(doc)
+        cls._dict_to_list(doc)
 
     @classmethod
     def _fix_int_float(cls, doc):
@@ -447,6 +478,7 @@ class MongoSchema(object):
         cls._fromdb_fix_id(doc)
         cls._fill_defaults(doc)
         cls._fix_int_float(doc)
+        cls._list_to_dict(doc)
         return cls.doc_class(doc, cls)
 
     @classmethod

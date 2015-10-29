@@ -17,6 +17,13 @@ TEST_DB_NAME = os.environ['TEST_DB_NAME']
 db = conn[TEST_DB_NAME]
 
 
+class SchemaWithDict(MongoSchema):
+    collection = db.user
+    schema = {
+        'data': MF(dict),
+    }
+
+
 class UserDoc(MongoDoc):
 
     def get_username(self):
@@ -98,6 +105,7 @@ class EmbedDoc(MongoSchema):
     }
 
 
+"""
 class EmbedDocWithValidation(MongoSchema):
     collection = db.embeded_doc
     schema = {
@@ -107,6 +115,7 @@ class EmbedDocWithValidation(MongoSchema):
         }
     }
 
+"""
 
 class SchemaWithList(MongoSchema):
     collection = db.with_list
@@ -228,9 +237,10 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     def test_schemaless_embeded_doc(self):
         data = {'testing': 'nothing', 'hellow': 'world'}
         doc = EmbedDoc.create(data=data)
-        raw_doc = self._compare_with_db(doc, 'data')
-        self.assertEqual(raw_doc['data'], data)
+        raw_doc = doc.ms.collection.find_one({'_id': doc.id})
+        self.assertEqual(dict(raw_doc['data']), data)
 
+    """
     def test_embeded_doc_validation(self):
         EmbedDocWithValidation.create(
             data={
@@ -246,6 +256,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
                 }
             )
             self.assertTrue(False)
+    """
 
     def test_list_definition(self):
         user1 = User.create(username=u'bob')
@@ -425,6 +436,25 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         fetched_again = UserWithCacheDisabled.get(id=user.id)
         fetched_again_again = UserWithCacheDisabled.get(id=user.id)
         self.assertTrue(fetched_again_again is fetched_again)
+
+    def test_schema_with_dict(self):
+        data = {
+            'this': 'that',
+        }
+        tmp = SchemaWithDict.create(data=data)
+        raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
+        self.assertTrue(type(raw['data']) is list)
+        self.assertTrue(dict(raw['data']) == data)
+        self.assertTrue(type(tmp.data) is dict)
+        new_data = {
+            'hello': 'world',
+        }
+        tmp.data = new_data
+        tmp.save()
+        raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
+        self.assertTrue(type(raw['data']) is list)
+        self.assertTrue(dict(raw['data']) == new_data)
+        self.assertTrue(type(tmp.data) is dict)
 
 
 if __name__ == '__main__':
