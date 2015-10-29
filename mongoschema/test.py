@@ -21,6 +21,7 @@ class SchemaWithDict(MongoSchema):
     collection = db.user
     schema = {
         'data': MF(dict),
+        'list_data': [MF(dict)],
     }
 
 
@@ -439,8 +440,11 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_schema_with_dict(self):
         data = {
-            'this': 'that',
+            'this.thing': 'that',
         }
+        list_data = [
+            {'this.thing': 'that'}
+        ]
         tmp = SchemaWithDict.create(data=data)
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
         self.assertTrue(type(raw['data']) is list)
