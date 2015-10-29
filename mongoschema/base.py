@@ -161,7 +161,6 @@ class MongoDoc(object):
         self.doc = mdoc.doc
 
 
-
 class MongoField(object):
 
     def __init__(self, type, default=NoDefault, default_func=None,
@@ -362,6 +361,7 @@ class MongoSchema(object):
 
     @classmethod
     def _writedoc(cls, doc, insert_or_save):
+        doc = copy.deepcopy(doc)
         cls._validate(doc)
         cls._fordb(doc)
         if insert_or_save == 'insert':
@@ -410,7 +410,7 @@ class MongoSchema(object):
         cls._fill_defaults(doc)
         cls._basic_schema_validation(doc)
         cls._fix_references(doc)
-        cls._writedoc(doc, 'insert')
+        doc = cls._writedoc(doc, 'insert')
         mdoc = cls.doc_class(doc, cls)
         if cls.cache_enabled:
             return cls.add_to_cache(mdoc)
@@ -431,37 +431,44 @@ class MongoSchema(object):
             del kwargs['id']
 
     @classmethod
-    def _dict_to_list(cls, doc):
+    def _unfix_dict_keys(cls, doc):
         """
-        Because mongodb doesn't allow '.' to be in document keys
-        but python does so we need to convert to a list before we save
+        Look for all instances of __dict__: ... and turn it back into a dict
         """
-        for key in cls.schema:
-            mf = cls.schema[key]
-            if key not in doc or type(mf) is list:
-                # it wasnt required or is a list
-                continue
-            if mf.type is dict:
-                doc[key] = doc[key].items()
+        if type(doc) is dict:
+            if '__dict__' in doc:
+                doc = dict(doc['__dict__'])
+            for key in doc:
+                doc[key] = cls._unfix_dict_keys(doc[key])
+            return doc
+        elif type(doc) is list:
+            for i, item in enumerate(doc):
+                doc[i] = cls._fix_dict_keys(doc[i])
+            return doc
+        else:
+            return doc
 
     @classmethod
-    def _list_to_dict(cls, doc):
+    def _fix_dict_keys(cls, doc):
         """
         Because mongodb doesn't allow '.' to be in document keys
         but python does so we need to convert to a list before we save
         """
-        for key in cls.schema:
-            mf = cls.schema[key]
-            if key not in doc or type(mf) is list:
-                # it wasnt required or is a list
-                continue
-            if mf.type is dict:
-                doc[key] = dict(doc[key])
+        if type(doc) is dict:
+            for key in doc:
+                doc[key] = cls._fix_dict_keys(doc[key])
+            return {'__dict__': doc.items()}
+        elif type(doc) is list:
+            for i, item in enumerate(doc):
+                doc[i] = cls._fix_dict_keys(doc[i])
+            return doc
+        else:
+            return doc
 
     @classmethod
     def _fordb(cls, doc):
         cls._fordb_fix_id(doc)
-        cls._dict_to_list(doc)
+        cls._fix_dict_keys(doc)
 
     @classmethod
     def _fix_int_float(cls, doc):
@@ -478,7 +485,7 @@ class MongoSchema(object):
         cls._fromdb_fix_id(doc)
         cls._fill_defaults(doc)
         cls._fix_int_float(doc)
-        cls._list_to_dict(doc)
+        cls._unfix_dict_keys(doc)
         return cls.doc_class(doc, cls)
 
     @classmethod

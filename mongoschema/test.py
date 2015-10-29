@@ -239,7 +239,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         data = {'testing': 'nothing', 'hellow': 'world'}
         doc = EmbedDoc.create(data=data)
         raw_doc = doc.ms.collection.find_one({'_id': doc.id})
-        self.assertEqual(dict(raw_doc['data']), data)
+        self.assertEqual(MongoSchema._unfix_dict_keys(raw_doc['data']), data)
 
     """
     def test_embeded_doc_validation(self):
@@ -440,24 +440,35 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_schema_with_dict(self):
         data = {
-            'this.thing': 'that',
+            u'this.thing': u'that',
+            u'another.thing': {
+                u'another.blah': u'thing',
+                u'dudeman' : {
+                    u'hello.world': u'nothing',
+                }
+            },
         }
         list_data = [
-            {'this.thing': 'that'}
+            {u'this.thing': u'that'}
         ]
-        tmp = SchemaWithDict.create(data=data)
+        tmp = SchemaWithDict.create(data=data, list_data=list_data)
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
-        self.assertTrue(type(raw['data']) is list)
-        self.assertTrue(dict(raw['data']) == data)
+        self.assertTrue('__dict__' in raw['data'] and len(raw['data']) == 1)
+        self.assertTrue(MongoSchema._unfix_dict_keys(raw['data']) == data)
         self.assertTrue(type(tmp.data) is dict)
         new_data = {
-            'hello': 'world',
+            u'hello': u'world',
+            u'dudeman' : {
+                u'hello.world': u'nothing',
+            }
         }
         tmp.data = new_data
         tmp.save()
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
-        self.assertTrue(type(raw['data']) is list)
-        self.assertTrue(dict(raw['data']) == new_data)
+        self.assertTrue(
+            '__dict__' in raw['data'] and len(raw['data']) == 1)
+        self.assertTrue(
+            MongoSchema._unfix_dict_keys(raw['data']) == new_data, new_data)
         self.assertTrue(type(tmp.data) is dict)
 
 
