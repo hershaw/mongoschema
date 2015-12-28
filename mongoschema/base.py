@@ -11,6 +11,11 @@ from bson.objectid import ObjectId
 
 LIST_TYPES = (list, tuple)
 
+DICT_KEY_REPLACEMENTS = (
+    ('$', '&dollar;'),
+    ('.', '&period;')
+)
+
 
 class MongoEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -436,9 +441,12 @@ class MongoSchema(object):
         Look for all instances of __dict__: ... and turn it back into a dict
         """
         if type(doc) is dict:
-            if '__dict__' in doc:
-                doc = dict(doc['__dict__'])
             for key in doc:
+                old_key = key
+                key = cls._fix_single_dict_key(key, fordb=False)
+                if old_key != key:
+                    doc[key] = doc[old_key]
+                    del doc[old_key]
                 doc[key] = cls._unfix_dict_keys(doc[key])
             return doc
         elif type(doc) is list:
@@ -449,19 +457,30 @@ class MongoSchema(object):
             return doc
 
     @classmethod
+    def _fix_single_dict_key(cls, key, fordb=False):
+        for orig, replacewith in DICT_KEY_REPLACEMENTS:
+            if fordb:
+                # if converting from python code to db
+                key = key.replace(orig, replacewith)
+            else:
+                # if converting from db to python code
+                key = key.replace(replacewith, orig)
+        return key
+
+    @classmethod
     def _fix_dict_keys(cls, doc):
         """
         Because mongodb doesn't allow '.' to be in document keys
         but python does so we need to convert to a list before we save
         """
         if type(doc) is dict:
-            bad_key = False
             for key in doc:
+                old_key = key
+                key = cls._fix_single_dict_key(key, fordb=True)
+                if old_key != key:
+                    doc[key] = doc[old_key]
+                    del doc[old_key]
                 doc[key] = cls._fix_dict_keys(doc[key])
-                if '.' in key or key.startswith('$'):
-                    bad_key = True
-            if bad_key:
-                return {'__dict__': doc.items()}
             else:
                 return doc
         elif type(doc) is list:

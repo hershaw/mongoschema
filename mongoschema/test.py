@@ -1,13 +1,11 @@
 import unittest
 import os
-import datetime
 import re
 
 from bson.objectid import ObjectId
 import pymongo
 
 from base import MongoSchema, MongoDoc, MongoField as MF, ValidationError
-import cProfile, pstats
 
 WITH_PROFILE = False
 
@@ -95,7 +93,7 @@ class Email(MongoSchema):
     }
     indexes = [
         'user',
-        [(('subject', -1), ('body', -1)), {}], # compound index
+        [(('subject', -1), ('body', -1)), {}],  # compound index
     ]
 
 
@@ -118,6 +116,7 @@ class EmbedDocWithValidation(MongoSchema):
 
 """
 
+
 class SchemaWithList(MongoSchema):
     collection = db.with_list
     schema = {
@@ -139,18 +138,10 @@ class EmailEntry(MongoSchema):
 class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def setUp(self):
-        if WITH_PROFILE:
-            self.pr = cProfile.Profile()
-            self.pr.enable()
         MongoSchema.clear_cache_and_init()
 
     def tearDown(self):
         conn.drop_database(TEST_DB_NAME)
-        if WITH_PROFILE:
-            p = pstats.Stats(self.pr)
-            p.strip_dirs()
-            p.sort_stats('cumtime')
-            p.print_stats()
 
     def _create_user(self, username=u'this is a test'):
         return User.create(username=username)
@@ -161,11 +152,6 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     def _get_field_from_db(self, doc, field):
         raw_doc = doc.ms.collection.find_one({'_id': doc.id})
         return raw_doc[field]
-
-    def _compare_with_db(self, doc, field):
-        raw_doc = doc.ms.collection.find_one({'_id': doc.id})
-        self.assertEqual(raw_doc[field], getattr(doc, field))
-        return raw_doc
 
     def testtest_pkey_generation(self):
         user = self._create_user()
@@ -194,14 +180,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_update(self):
         user = self._create_user()
-        newname =u'anothername'
+        newname = u'anothername'
         user.username = newname
         user.save()
         self.assertEqual(user.username, newname)
         self._compare_with_db(user, 'username')
 
     def test_compound_index(self):
-        email = self._create_email(self._create_user())
+        self._create_email(self._create_user())
         index_info = Email.collection.index_information()
         self.assertTrue(u'subject_-1_body_-1' in index_info)
 
@@ -335,10 +321,10 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         """
         With inheritence as well
         """
-        user = self._create_user()
+        self._create_user()
         self._compare_indexes(User)
 
-        farmer = self._create_farmer()
+        self._create_farmer()
         self._compare_indexes(Farmer)
 
     def test_regexp_validate(self):
@@ -440,10 +426,10 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_schema_with_dict(self):
         data = {
-            u'this.thing': u'that',
-            u'another.thing': {
-                u'another.blah': u'thing',
-                u'dudeman' : {
+            u'$this.thing': u'that',
+            u'a.t': {
+                u'a.b': u'thing',
+                u'dudeman': {
                     u'hello.world': u'nothing',
                 }
             },
@@ -453,25 +439,25 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         ]
         tmp = SchemaWithDict.create(data=data, list_data=list_data)
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
-        self.assertTrue('__dict__' in raw['data'] and len(raw['data']) == 1)
+        self.assertTrue('&dollar;this&period;thing' in raw['data'])
+        self.assertTrue('a&period;t' in raw['data'])
+        self.assertTrue('a&period;b' in raw['data']['a&period;t'])
         self.assertTrue(MongoSchema._unfix_dict_keys(raw['data']) == data)
         self.assertTrue(
             MongoSchema._unfix_dict_keys(raw['list_data']) == list_data)
         self.assertTrue(type(tmp.data) is dict)
         new_data = {
             u'hello': u'world',
-            u'dudeman' : {
-                u'hello.world': u'nothing',
+            u'dudeman': {
+                u'h.w': u'nothing',
             }
         }
         tmp.data = new_data
         tmp.save()
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
-        self.assertTrue(
-            '__dict__' not in raw['data'] and len(raw['data']) == 2)
+        self.assertTrue('h&period;w' in raw['data']['dudeman'])
         self.assertTrue(
             MongoSchema._unfix_dict_keys(raw['data']) == new_data, new_data)
-        self.assertTrue(type(tmp.data) is dict)
 
 
 if __name__ == '__main__':
