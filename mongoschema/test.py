@@ -478,6 +478,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         doc.save()
         self.assertEqual(doc.field, fieldval)
 
+    def test_update_single_field(self):
+        user = self._create_user()
+        new_username = u'new_username'
+        user.username = new_username
+        user.update_single_field('username', new_username)
+        raw_user = User.collection.find_one({'_id': user.id})
+        self.assertEqual(user.username, new_username)
+        self.assertEqual(raw_user['username'], new_username)
 
 if __name__ == '__main__':
     unittest.main()

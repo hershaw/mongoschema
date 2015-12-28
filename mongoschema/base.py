@@ -170,6 +170,16 @@ class MongoDoc(object):
         mdoc = self.ms._fromdb(doc)
         self.doc = mdoc.doc
 
+    def update_single_field(self, key, value):
+        """
+        Execute an $update only on the one field being passed in so you don't
+        have to call save() on the whole doc.
+        """
+        self.__setattr__(key, value)
+        q = {'_id': self.id}
+        up = {'$set': {key: value}}
+        self.ms.collection.update(q, up)
+
 
 class MongoField(object):
 
