@@ -54,7 +54,7 @@ class NoValue(object):
     def __bool__(self):
         return False
 
-    __nonzero__=__bool__
+    __nonzero__ = __bool__
 
 
 class MongoDocRefList(list):
@@ -130,6 +130,11 @@ class MongoDoc(object):
 
     def __eq__(self, other):
         return self.id == other.id
+
+    def __delitem__(self, key):
+        del self.doc[key]
+        q, up = {'_id': self.id}, {'$unset': {key: True}}
+        self.ms.collection.update(q, up)
 
     def save(self):
         self.ms._writedoc(self.doc, 'update')

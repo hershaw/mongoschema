@@ -135,6 +135,13 @@ class EmailEntry(MongoSchema):
     }
 
 
+class WithOptionalField(MongoSchema):
+    collection = db.with_optional_field
+    schema = {
+        'field': MF(unicode, required=False),
+    }
+
+
 class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -458,6 +465,18 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertTrue('h&period;w' in raw['data']['dudeman'])
         self.assertTrue(
             MongoSchema._unfix_dict_keys(raw['data']) == new_data, new_data)
+
+    def test_del(self):
+        fieldval = u'nothing'
+        doc = WithOptionalField.create(field=fieldval)
+        self.assertEqual(fieldval, doc.field)
+        del doc['field']
+        self.assertFalse(doc.field)
+        doc.reload()
+        self.assertFalse(doc.field)
+        doc.field = fieldval
+        doc.save()
+        self.assertEqual(doc.field, fieldval)
 
 
 if __name__ == '__main__':
