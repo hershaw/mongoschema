@@ -2,8 +2,6 @@
 import datetime
 import time
 import json
-import inspect
-import os
 import copy
 
 # 3rd party
@@ -15,6 +13,14 @@ DICT_KEY_REPLACEMENTS = (
     ('$', '&dollar;'),
     ('.', '&period;')
 )
+
+
+def _my_import(name):
+    components = name.split('.')
+    mod = __import__(components[0])
+    for comp in components[1:]:
+        mod = getattr(mod, comp)
+    return mod
 
 
 class MongoEncoder(json.JSONEncoder):
@@ -183,10 +189,14 @@ class MongoDoc(object):
 
 class MongoField(object):
 
-    def __init__(self, type, default=NoDefault, default_func=None,
+    def __init__(self, _type, default=NoDefault, default_func=None,
                  required=True, allowed_vals=None,
                  validate_regexp=None):
-        self.type = type
+        self._type = None
+        if type(_type) is not str:
+            self._type = _type
+        else:
+            self._import_string = _type
         self.default = default
         self.default_func = default_func
         self.required = required
@@ -194,15 +204,21 @@ class MongoField(object):
         self.validate_init()
         self.validate_regexp = validate_regexp
 
+    @property
+    def type(self):
+        if self._type is None:
+            self._type = _my_import(self._import_string)
+        return self._type
+
     def validate_init(self):
         allowed = self.allowed_vals
         if not allowed:
             return
         for val in allowed:
             if not isinstance(val, self.type):
-                raise ValidationError('allowed_vals: expected'
-                                      ' %s, got %s for field' % (
-                                          self.type, type(val)))
+                raise ValidationError(
+                    'allowed_vals: expected %s, got %s for field' % (
+                        self.type, type(val)))
 
     def filldefault(self):
         if self.default_func:
@@ -329,8 +345,8 @@ class MongoSchema(object):
     @classmethod
     def _validate_mongo_field(cls, key, doc, mf):
         if mf.required:
-           if key not in doc:
-               raise RequiredNotFoundException(key)
+            if key not in doc:
+                raise RequiredNotFoundException(key)
         elif key not in doc:
             # it's not required and it's not there. fuck it!
             return
@@ -360,9 +376,9 @@ class MongoSchema(object):
         schema = schema or cls.schema
         for key in doc:
             if key not in schema:
-                raise ValidationError('Could not find '
-                                      '"%s" in schema for %s ' % (
-                                      key, cls.__name__))
+                raise ValidationError(
+                    'Could not find "%s" in schema for %s ' % (
+                        key, cls.__name__))
         for key in schema:
             mf = schema[key]
             if isinstance(mf, MongoField):
@@ -389,7 +405,7 @@ class MongoSchema(object):
         elif insert_or_save == 'update':
             docid = doc['_id']
             del doc['_id']
-            cls.collection.update({'_id': docid}, {'$set' : doc})
+            cls.collection.update({'_id': docid}, {'$set': doc})
             doc['_id'] = docid
         else:
             raise ValueError('expected "insert" or "save"')
@@ -580,6 +596,6 @@ class MongoSchema(object):
             kwargs['_id'] = kwargs['id']
             del kwargs['id']
         for doc in cls.collection.find(kwargs, projection={'_id': True}):
-            docs = cls.collection.remove(doc)
+            cls.collection.remove(doc)
             if cls.cache_enabled:
                 cls._remove_from_cache(doc['_id'])

@@ -15,6 +15,21 @@ TEST_DB_NAME = os.environ['TEST_DB_NAME']
 db = conn[TEST_DB_NAME]
 
 
+class Referencer(MongoSchema):
+    collection = db.referencer
+    schema = {
+        'referenced': MF('test.Referenced'),
+    }
+
+
+class Referenced(MongoSchema):
+    collection = db.referenced
+    schema = {
+        'nothing': MF(unicode),
+        'referencer': MF('test.Referencer', required=False),
+    }
+
+
 class SchemaWithDict(MongoSchema):
     collection = db.user
     schema = {
@@ -486,6 +501,15 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         raw_user = User.collection.find_one({'_id': user.id})
         self.assertEqual(user.username, new_username)
         self.assertEqual(raw_user['username'], new_username)
+
+    def test_lazy_loading(self):
+        referenced = Referenced.create(nothing=u'nothing')
+        referencer = Referencer.create(referenced=referenced)
+        self.assertEqual(referencer.referenced.nothing, u'nothing')
+        referenced.referencer = referencer
+        referenced.save()
+        self.assertEqual(referenced.referencer.id, referencer.id)
+
 
 if __name__ == '__main__':
     unittest.main()
