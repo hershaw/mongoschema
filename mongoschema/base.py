@@ -131,8 +131,8 @@ class MongoDoc(object):
 
     def __str__(self):
         return json.dumps(self.doc, sort_keys=True,
-                          indent=4, separators=(',', ': '),
-                          cls=MongoEncoder)
+                            indent=4, separators=(',', ': '),
+                            cls=MongoEncoder)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -307,7 +307,7 @@ class MongoSchema(object):
     def _initschema(cls):
         if 'id' not in cls.schema:
             cls.schema['id'] = MongoField(ObjectId, default_func=ObjectId,
-                                          required=False)
+                                            required=False)
         else:
             if cls.schema['id'].default_func is None:
                 raise PrimaryKeyMissing('primary key default_func required')
@@ -392,7 +392,7 @@ class MongoSchema(object):
                     cls._check_entry_type(key, entry, mf[0])
             else:
                 raise ValidationError('Values must be dict or MongoField'
-                                      ' was given %s instead' % type(mf))
+                                        ' was given %s instead' % type(mf))
         return MongoDoc(doc, cls)
 
     @classmethod
@@ -431,6 +431,9 @@ class MongoSchema(object):
             # just a regular dictionary
             pass
         elif issubclass(mf.type, MongoSchema):
+            if value is None:
+                raise ValueError(
+                    'Expected instance of %s, instead got None' % str(mf.type))
             value = value.id
         return value
 

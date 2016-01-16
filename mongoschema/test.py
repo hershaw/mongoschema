@@ -108,7 +108,7 @@ class Email(MongoSchema):
     }
     indexes = [
         'user',
-        [(('subject', -1), ('body', -1)), {}],  # compound index
+        [(('subject', -1), ('body', -1)), {}],    # compound index
     ]
 
 
