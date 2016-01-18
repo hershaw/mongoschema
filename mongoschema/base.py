@@ -7,6 +7,11 @@ import copy
 # 3rd party
 from bson.objectid import ObjectId
 
+try:
+    from flask import request
+except:
+    request = None
+
 LIST_TYPES = (list, tuple)
 
 DICT_KEY_REPLACEMENTS = (
@@ -15,7 +20,28 @@ DICT_KEY_REPLACEMENTS = (
 )
 
 
+def _getparams():
+    """
+    This function must return a dictionary because all api calls to a
+    MongoDoc instance can only take **kwargs.
+    """
+    if request.method == 'GET':
+        params = {}
+        if request.args.get('json'):
+            params = json.loads(request.args['json'])
+    else:
+        params = request.get_json()
+    return params
+
+
+def _functionify(string):
+    return string.replace('-', '_')
+
+
 def _my_import(name):
+    """
+    For lazy importing of modules
+    """
     components = name.split('.')
     mod = __import__(components[0])
     for comp in components[1:]:
@@ -29,6 +55,8 @@ class MongoEncoder(json.JSONEncoder):
             return str(obj)
         elif isinstance(obj, datetime.datetime):
             return time.mktime(obj.timetuple())
+        elif isinstance(obj, MongoDoc):
+            return obj.to_dict()
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
@@ -131,8 +159,8 @@ class MongoDoc(object):
 
     def __str__(self):
         return json.dumps(self.doc, sort_keys=True,
-                            indent=4, separators=(',', ': '),
-                            cls=MongoEncoder)
+                          indent=4, separators=(',', ': '),
+                          cls=MongoEncoder)
 
     def __eq__(self, other):
         return self.id == other.id
@@ -185,6 +213,10 @@ class MongoDoc(object):
         q = {'_id': self.id}
         up = {'$set': {key: value}}
         self.ms.collection.update(q, up)
+
+    @property
+    def path_for(self):
+        return self.ms.doc_path_for(oid=self.id)
 
 
 class MongoField(object):
@@ -267,6 +299,8 @@ class MongoSchema(object):
         cls._ensureindexes()
         cls._initschema()
         cls.cache = {}
+        clsname = cls.__name__.lower()
+        cls.api_path_scheme = '/%s/<oid>' % clsname
 
     @classmethod
     def _set_cache(cls, enabled_or_disabled):
@@ -307,7 +341,7 @@ class MongoSchema(object):
     def _initschema(cls):
         if 'id' not in cls.schema:
             cls.schema['id'] = MongoField(ObjectId, default_func=ObjectId,
-                                            required=False)
+                                          required=False)
         else:
             if cls.schema['id'].default_func is None:
                 raise PrimaryKeyMissing('primary key default_func required')
@@ -392,7 +426,7 @@ class MongoSchema(object):
                     cls._check_entry_type(key, entry, mf[0])
             else:
                 raise ValidationError('Values must be dict or MongoField'
-                                        ' was given %s instead' % type(mf))
+                                      ' was given %s instead' % type(mf))
         return MongoDoc(doc, cls)
 
     @classmethod
@@ -602,3 +636,69 @@ class MongoSchema(object):
             cls.collection.remove(doc)
             if cls.cache_enabled:
                 cls._remove_from_cache(doc['_id'])
+
+    ############################################################
+    # Flask stuff
+    ############################################################
+
+    @classmethod
+    def register_app(cls, flask_app):
+        cls._flask_app = flask_app
+        clsname = cls.__name__
+        cls._flask_app.add_url_rule(
+            cls.api_path_scheme, clsname, cls._doc_route())
+        cls._flask_app.add_url_rule(
+            cls.static_path_for(), clsname + '_list', cls._static_route())
+
+    @classmethod
+    def _doc_route(cls, name=None):
+        def real_route(oid):
+            md = cls.get(id=oid)
+            if name is not None:
+                params = _getparams()
+                retval = getattr(md, name)(**params)
+                return json.dumps(retval, cls=MongoEncoder)
+            else:
+                return json.dumps(md, cls=MongoEncoder)
+        return real_route
+
+    @classmethod
+    def doc_path_for(cls, name=None, oid=None):
+        path = cls.api_path_scheme
+        if name:
+            path = '%s/%s' % (path, name)
+        if oid:
+            path = path.replace('<oid>', str(oid))
+        return path
+
+    @classmethod
+    def doc_route(cls, name, **kwargs):
+        path = cls.doc_path_for(name)
+        funcname = _functionify(name)
+        cls._flask_app.add_url_rule(
+            path, name, cls._doc_route(funcname), **kwargs)
+
+    @classmethod
+    def _static_route(cls, name=None):
+        def real_route():
+            if name is None:
+                return json.dumps(cls.list(), cls=MongoEncoder)
+            else:
+                params = _getparams()
+                retval = getattr(cls, name)(**params)
+                return json.dumps(retval, cls=MongoEncoder)
+        return real_route
+
+    @classmethod
+    def static_path_for(cls, name=None):
+        path = cls.api_path_scheme.replace('<oid>', '')
+        if name:
+            path = '%s/%s' % (path, name)
+        return path
+
+    @classmethod
+    def static_route(cls, name=None, **kwargs):
+        funcname = _functionify(name)
+        path = cls.static_path_for(name=name)
+        cls._flask_app.add_url_rule(
+            path, name, cls._static_route(funcname), **kwargs)
