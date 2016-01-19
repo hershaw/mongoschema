@@ -44,6 +44,11 @@ class UserDoc(MongoDoc):
     def get_username(self):
         return self.username
 
+    def set_username(self, username=None):
+        self.username = username
+        self.save()
+        return self
+
 
 class User(MongoSchema):
     collection = db.user
@@ -539,24 +544,46 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             if method == 'get':
                 reply = func(url, params=data)
             else:
-                reply = func(url, params=data)
+                reply = func(url, json=data)
             return reply.json()
 
         def test_path_generation(self):
             self.assertEqual(
                 '/user/<oid>/get-username',
                 User.doc_path_for('get-username'))
+            self.assertEqual('/user/', User.static_path_for())
 
-        def test_get(self):
-            user = _create_user()
+        def _test_vanilla_get(self, user):
             dict_user = self._execute_request(user.path_for)
             self.assertEqual(str(user.id), dict_user['id'])
+
+        def _test_get_single_field(self, user):
             username = self._execute_request(
                 User.doc_path_for(name='get-username', oid=user.id))
             self.assertEqual(username, user.username)
+
+        def _test_vanilla_list(self, user):
             user2 = _create_user(username=u'u2')
             all_users = self._execute_request(User.static_path_for())
             self.assertEqual(len(all_users), 2)
+            self.assertEqual(all_users[0]['id'], str(user.id))
+            self.assertEqual(all_users[1]['id'], str(user2.id))
+
+        def test_get(self):
+            user = _create_user()
+            self._test_vanilla_get(user)
+            self._test_get_single_field(user)
+            self._test_vanilla_list(user)
+
+        def test_set(self):
+            user = _create_user()
+            new_username = u'u2'
+            data = {'username': new_username}
+            reply = self._execute_request(
+                User.doc_path_for(name='set-username', oid=user.id), data=data,
+                method='patch')
+            self.assertEqual(reply['username'], new_username)
+
 
 if __name__ == '__main__':
     unittest.main()

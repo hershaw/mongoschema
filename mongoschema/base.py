@@ -642,24 +642,34 @@ class MongoSchema(object):
     ############################################################
 
     @classmethod
-    def register_app(cls, flask_app):
+    def _default_response(cls, retval):
+        return json.dumps(retval, cls=MongoEncoder)
+
+    @classmethod
+    def register_app(cls, flask_app, response_func=None):
+        if response_func is None:
+            cls._response_func = cls._default_response
         cls._flask_app = flask_app
         clsname = cls.__name__
+        # set the vanilla 'get' for getting a single doc by ID
         cls._flask_app.add_url_rule(
             cls.api_path_scheme, clsname, cls._doc_route())
+        # set the vanilla list all for the collection
         cls._flask_app.add_url_rule(
             cls.static_path_for(), clsname + '_list', cls._static_route())
 
     @classmethod
-    def _doc_route(cls, name=None):
+    def _doc_route(cls, name=None, response_wrap=None):
         def real_route(oid):
             md = cls.get(id=oid)
             if name is not None:
                 params = _getparams()
                 retval = getattr(md, name)(**params)
-                return json.dumps(retval, cls=MongoEncoder)
+                if response_wrap:
+                    retval = response_wrap(retval)
+                return cls._response_func(retval)
             else:
-                return json.dumps(md, cls=MongoEncoder)
+                return cls._response_func(md)
         return real_route
 
     @classmethod
@@ -682,11 +692,11 @@ class MongoSchema(object):
     def _static_route(cls, name=None):
         def real_route():
             if name is None:
-                return json.dumps(cls.list(), cls=MongoEncoder)
+                return cls._response_func(cls.list())
             else:
                 params = _getparams()
                 retval = getattr(cls, name)(**params)
-                return json.dumps(retval, cls=MongoEncoder)
+                return cls._response_func(retval)
         return real_route
 
     @classmethod
