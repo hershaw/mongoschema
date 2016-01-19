@@ -8,7 +8,7 @@ import copy
 from bson.objectid import ObjectId
 
 try:
-    from flask import request
+    from flask import request, Response
 except:
     request = None
 
@@ -648,88 +648,77 @@ class MongoSchema(object):
     def register_app(cls, flask_app, response_func=None):
         if response_func is None:
             cls._response_func = cls._default_response
+        else:
+            cls._response_func = response_func
         cls._flask_app = flask_app
-        cls._register_default_routes()
 
     @classmethod
     def _default_response(cls, retval):
         return json.dumps(retval, cls=MongoEncoder)
 
     @classmethod
-    def _register_default_routes(cls):
-        clsname = cls.__name__
-
-        # set the vanilla 'get' for getting a single doc by ID
-        cls._flask_app.add_url_rule(
-            cls.api_path_scheme, clsname + '.get', cls._doc_route())
-
-        # set the vanilla list all for the collection
-        cls._flask_app.add_url_rule(
-            cls.path_for(), clsname + '.list', cls._static_route())
-
-        # route to the create function
-        cls._flask_app.add_url_rule(
-            cls.path_for(), clsname + '.create', cls._static_route('create'),
-            methods=['POST'])
-
-        # route to the update function
-        cls._flask_app.add_url_rule(
-            cls.api_path_scheme, clsname + '.update', cls._doc_route('update'),
-            methods=['PATCH'])
-
-    @classmethod
-    def _doc_route(cls, name=None, response_wrap=None):
+    def _doc_route(cls, name=None, custom_response=None):
         def real_route(oid):
             md = cls.get(id=oid)
-            if name is not None:
+            if md is None:
+                return Response(None, status=404)
+            response_func = custom_response or cls._response_func
+            if name == 'get':
+                retval = md
+            elif name == 'remove':
+                md.remove()
+                retval = oid
+            elif name is not None:
                 params = _getparams()
                 retval = getattr(md, name)(**params)
-                if response_wrap:
-                    retval = response_wrap(retval)
-                return cls._response_func(retval)
             else:
-                return cls._response_func(md)
+                retval = md
+            return response_func(retval)
         return real_route
 
     @classmethod
     def doc_path_for(cls, name=None, oid=None):
         path = cls.api_path_scheme
-        if name:
+        if name and name not in ('get', 'update', 'remove'):
             path = '%s/%s' % (path, name)
         if oid:
             path = path.replace('<oid>', str(oid))
         return path
 
     @classmethod
-    def doc_route(cls, name, **kwargs):
+    def doc_route(cls, name, custom_response=None, **kwargs):
         clsname = cls.__name__
-        path = cls.doc_path_for(name)
+        path = cls.doc_path_for(name=name)
         funcname = _functionify(name)
         cls._flask_app.add_url_rule(
-            path, '%s.%s' % (clsname, funcname), cls._doc_route(funcname),
+            path, '%s.doc.%s' % (clsname, funcname),
+            cls._doc_route(funcname, custom_response=custom_response),
             **kwargs)
 
     @classmethod
-    def _static_route(cls, name=None):
+    def _static_route(cls, name=None, custom_response=None):
         def real_route():
+            response_func = custom_response or cls._response_func
             if name is None:
-                return cls._response_func(cls.list())
+                retval = cls.list()
             else:
                 params = _getparams()
                 retval = getattr(cls, name)(**params)
-                return cls._response_func(retval)
+            return response_func(retval)
         return real_route
 
     @classmethod
     def path_for(cls, name=None):
         path = cls.api_path_scheme.replace('<oid>', '')
-        if name:
-            path = '%s/%s' % (path, name)
+        if name and name not in ('create', 'list'):
+            path = '%s%s' % (path, name)
         return path
 
     @classmethod
-    def static_route(cls, name=None, **kwargs):
+    def static_route(cls, name=None, custom_response=None, **kwargs):
+        clsname = cls.__name__
         funcname = _functionify(name)
         path = cls.path_for(name=name)
-        cls._flask_app.add_url_rule(
-            path, name, cls._static_route(funcname), **kwargs)
+        route = cls._static_route(funcname, custom_response=custom_response)
+        cls._flask_app.add_url_rule(path, '%s.%s' % (clsname, funcname), route,
+                                    **kwargs)

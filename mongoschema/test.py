@@ -48,6 +48,9 @@ class UserDoc(MongoDoc):
         self.username = username
         return self.save()
 
+    def useless_function(self):
+        return 'hello world'
+
 
 class User(MongoSchema):
     collection = db.user
@@ -58,6 +61,10 @@ class User(MongoSchema):
         ['username', {'unique': True}],
     ]
     doc_class = UserDoc
+
+    @classmethod
+    def useless_function(cls):
+        return 'completely useless'
 
 
 class UserWithCacheDisabled(MongoSchema):
@@ -544,6 +551,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
                 reply = func(url, params=data)
             else:
                 reply = func(url, json=data)
+            reply.raise_for_status()
             return reply.json()
 
         def test_path_generation(self):
@@ -591,10 +599,27 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             user = _create_user()
             new_username = u'u2'
             data = {'username': new_username}
-            path = User.doc_path_for(name='set-username', oid=user.id)
+            path = User.doc_path_for('set-username', oid=user.id)
             reply = self._execute_request(path, data=data, method='patch')
             self.assertEqual(reply['username'], new_username)
 
+        def test_custom_response(self):
+            user = _create_user()
+            path = User.doc_path_for('useless-function', oid=user.id)
+            reply = self._execute_request(path)
+            self.assertEqual(reply, {"1": 1})
+
+        def test_static_custom_response(self):
+            path = User.path_for('useless-function')
+            reply = self._execute_request(path)
+            self.assertEqual(reply, {"1": 1})
+
+        def test_remove(self):
+            user = _create_user()
+            path = User.doc_path_for('remove', oid=str(user.id))
+            self._execute_request(path, method='delete')
+            with self.assertRaises(requests.HTTPError):
+                self._execute_request(path)
 
 if __name__ == '__main__':
     unittest.main()
