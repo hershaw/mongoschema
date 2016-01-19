@@ -13,6 +13,7 @@ app.config.update(dict(
 User.register_app(app)
 User.doc_route('get-username')
 User.doc_route('set-username', methods=['PATCH'])
+
 print(app.url_map)
 
 if __name__ == '__main__':

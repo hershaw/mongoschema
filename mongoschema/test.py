@@ -46,8 +46,7 @@ class UserDoc(MongoDoc):
 
     def set_username(self, username=None):
         self.username = username
-        self.save()
-        return self
+        return self.save()
 
 
 class User(MongoSchema):
@@ -551,7 +550,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             self.assertEqual(
                 '/user/<oid>/get-username',
                 User.doc_path_for('get-username'))
-            self.assertEqual('/user/', User.static_path_for())
+            self.assertEqual('/user/', User.path_for())
 
         def _test_vanilla_get(self, user):
             dict_user = self._execute_request(user.path_for)
@@ -559,12 +558,12 @@ class MongoSchemaFlaskTest(unittest.TestCase):
 
         def _test_get_single_field(self, user):
             username = self._execute_request(
-                User.doc_path_for(name='get-username', oid=user.id))
+                User.doc_path_for('get-username', oid=user.id))
             self.assertEqual(username, user.username)
 
         def _test_vanilla_list(self, user):
             user2 = _create_user(username=u'u2')
-            all_users = self._execute_request(User.static_path_for())
+            all_users = self._execute_request(User.path_for())
             self.assertEqual(len(all_users), 2)
             self.assertEqual(all_users[0]['id'], str(user.id))
             self.assertEqual(all_users[1]['id'], str(user2.id))
@@ -575,13 +574,25 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             self._test_get_single_field(user)
             self._test_vanilla_list(user)
 
-        def test_set(self):
+        def test_create(self):
+            data = {'username': u'great_user'}
+            path = User.path_for()
+            reply = self._execute_request(path, data=data, method='post')
+            self.assertEqual(reply['username'], data['username'])
+
+        def test_vanilla_patch(self):
+            user = _create_user()
+            path = User.doc_path_for(oid=user.id)
+            data = {'username': u'new_username'}
+            reply = self._execute_request(path, data=data, method='patch')
+            self.assertTrue(reply['username'], data['username'])
+
+        def test_custom_patch(self):
             user = _create_user()
             new_username = u'u2'
             data = {'username': new_username}
-            reply = self._execute_request(
-                User.doc_path_for(name='set-username', oid=user.id), data=data,
-                method='patch')
+            path = User.doc_path_for(name='set-username', oid=user.id)
+            reply = self._execute_request(path, data=data, method='patch')
             self.assertEqual(reply['username'], new_username)
 
 

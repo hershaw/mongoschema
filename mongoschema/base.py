@@ -174,11 +174,13 @@ class MongoDoc(object):
         self.ms._writedoc(self.doc, 'update')
         return self
 
-    def update(self, raw_dict):
+    def update(self, raw_dict=None, **kwargs):
+        if raw_dict is None:
+            raw_dict = kwargs
         for key in raw_dict:
             self.ms.schema[key]
             self.doc[key] = raw_dict[key]
-        self.save()
+        return self.save()
 
     def remove(self):
         self.ms.remove(id=self.id)
@@ -643,21 +645,37 @@ class MongoSchema(object):
     ############################################################
 
     @classmethod
-    def _default_response(cls, retval):
-        return json.dumps(retval, cls=MongoEncoder)
-
-    @classmethod
     def register_app(cls, flask_app, response_func=None):
         if response_func is None:
             cls._response_func = cls._default_response
         cls._flask_app = flask_app
+        cls._register_default_routes()
+
+    @classmethod
+    def _default_response(cls, retval):
+        return json.dumps(retval, cls=MongoEncoder)
+
+    @classmethod
+    def _register_default_routes(cls):
         clsname = cls.__name__
+
         # set the vanilla 'get' for getting a single doc by ID
         cls._flask_app.add_url_rule(
-            cls.api_path_scheme, clsname, cls._doc_route())
+            cls.api_path_scheme, clsname + '.get', cls._doc_route())
+
         # set the vanilla list all for the collection
         cls._flask_app.add_url_rule(
-            cls.static_path_for(), clsname + '_list', cls._static_route())
+            cls.path_for(), clsname + '.list', cls._static_route())
+
+        # route to the create function
+        cls._flask_app.add_url_rule(
+            cls.path_for(), clsname + '.create', cls._static_route('create'),
+            methods=['POST'])
+
+        # route to the update function
+        cls._flask_app.add_url_rule(
+            cls.api_path_scheme, clsname + '.update', cls._doc_route('update'),
+            methods=['PATCH'])
 
     @classmethod
     def _doc_route(cls, name=None, response_wrap=None):
@@ -684,10 +702,12 @@ class MongoSchema(object):
 
     @classmethod
     def doc_route(cls, name, **kwargs):
+        clsname = cls.__name__
         path = cls.doc_path_for(name)
         funcname = _functionify(name)
         cls._flask_app.add_url_rule(
-            path, name, cls._doc_route(funcname), **kwargs)
+            path, '%s.%s' % (clsname, funcname), cls._doc_route(funcname),
+            **kwargs)
 
     @classmethod
     def _static_route(cls, name=None):
@@ -701,7 +721,7 @@ class MongoSchema(object):
         return real_route
 
     @classmethod
-    def static_path_for(cls, name=None):
+    def path_for(cls, name=None):
         path = cls.api_path_scheme.replace('<oid>', '')
         if name:
             path = '%s/%s' % (path, name)
@@ -710,6 +730,6 @@ class MongoSchema(object):
     @classmethod
     def static_route(cls, name=None, **kwargs):
         funcname = _functionify(name)
-        path = cls.static_path_for(name=name)
+        path = cls.path_for(name=name)
         cls._flask_app.add_url_rule(
             path, name, cls._static_route(funcname), **kwargs)
