@@ -172,6 +172,7 @@ class MongoDoc(object):
 
     def save(self):
         self.ms._writedoc(self.doc, 'update')
+        return self
 
     def update(self, raw_dict):
         for key in raw_dict:
