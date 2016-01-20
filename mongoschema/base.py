@@ -20,6 +20,23 @@ DICT_KEY_REPLACEMENTS = (
 )
 
 
+FLASK_APP = None
+API_PREFIX = None
+RESPONSE_FUNC = None
+
+
+def register_flask_app(app, prefix, response_func=None):
+    global FLASK_APP, RESPONSE_FUNC
+    FLASK_APP = app
+    RESPONSE_FUNC = response_func
+    set_api_prefix(prefix)
+
+
+def set_api_prefix(prefix):
+    global API_PREFIX
+    API_PREFIX = prefix
+
+
 def flaskprep(**prepargs):
     """
     Allow you do define a set of kwargs that map the name of a param to
@@ -28,6 +45,8 @@ def flaskprep(**prepargs):
 
     This is only executed if in the context of a flask app. Otherwise the
     caller will need to provide the args themselves.
+
+    Note: the flaskprep decorator must be the LAST decorator used
     """
     def real_decorator(func):
         def wrapper(cls_or_self, **kwargs):
@@ -326,8 +345,15 @@ class MongoSchema(object):
         cls._ensureindexes()
         cls._initschema()
         cls.cache = {}
+
+    @classmethod
+    def api_path_scheme(cls):
+        global API_PREFIX
         clsname = cls.__name__.lower()
-        cls.api_path_scheme = '/%s/<oid>' % clsname
+        path = '/%s/<oid>' % clsname
+        if API_PREFIX:
+            path = API_PREFIX + path
+        return path
 
     @classmethod
     def _set_cache(cls, enabled_or_disabled):
@@ -669,24 +695,9 @@ class MongoSchema(object):
     ############################################################
 
     @classmethod
-    def set_api_prefix(cls, path_prefix):
-        cls.api_path_scheme = path_prefix + cls.api_path_scheme
-
-    @classmethod
-    def register_app(cls, flask_app, response_func=None, path_prefix=None):
-        if path_prefix is not None:
-            cls.set_api_prefix(path_prefix)
-        cls._custom_response_func = None
-        if response_func is not None:
-            # have to wrap it up in a dictionary so it doesn't get
-            # bound to the class and expect to become a static member
-            cls._custom_response_func = {'func': response_func}
-        cls._flask_app = flask_app
-
-    @classmethod
     def _flask_response(cls, reply):
-        if cls._custom_response_func:
-            return cls._custom_response_func['func'](reply)
+        if RESPONSE_FUNC:
+            return RESPONSE_FUNC(reply)
         else:
             return cls._default_response(reply)
 
@@ -722,7 +733,7 @@ class MongoSchema(object):
 
     @classmethod
     def doc_path_for(cls, name=None, oid=None):
-        path = cls.api_path_scheme
+        path = cls.api_path_scheme()
         if name and name not in ('get', 'update', 'remove'):
             path = '%s/%s' % (path, name)
         if oid:
@@ -734,7 +745,7 @@ class MongoSchema(object):
         clsname = cls.__name__
         path = cls.doc_path_for(name=name)
         funcname = _functionify(name)
-        cls._flask_app.add_url_rule(
+        FLASK_APP.add_url_rule(
             path, '%s.doc.%s' % (clsname, funcname),
             cls._doc_route(funcname, custom_response=custom_response),
             **kwargs)
@@ -753,7 +764,7 @@ class MongoSchema(object):
 
     @classmethod
     def path_for(cls, name=None):
-        path = cls.api_path_scheme.replace('<oid>', '')
+        path = cls.api_path_scheme().replace('<oid>', '')
         if name and name not in ('create', 'list'):
             path = '%s%s' % (path, name)
         return path
@@ -765,5 +776,5 @@ class MongoSchema(object):
         funcname = _functionify(func or name)
         path = cls.path_for(name=name)
         route = cls._static_route(funcname, custom_response=custom_response)
-        cls._flask_app.add_url_rule(path, '%s.%s' % (clsname, funcname), route,
-                                    **kwargs)
+        FLASK_APP.add_url_rule(path, '%s.%s' % (clsname, funcname), route,
+                               **kwargs)

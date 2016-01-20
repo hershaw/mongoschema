@@ -8,6 +8,7 @@ import requests
 
 from base import (
     MongoSchema, MongoDoc, MongoField as MF, ValidationError, flaskprep,
+    set_api_prefix,
 )
 
 WITH_PROFILE = False
@@ -555,7 +556,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
 
         def setUp(self):
             _setUp()
-            User.set_api_prefix('/api/v0')
+            set_api_prefix('/api/v0')
 
         def tearDown(self):
             _tearDown()
@@ -638,13 +639,6 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             self._execute_request(path, method='delete')
             with self.assertRaises(requests.HTTPError):
                 self._execute_request(path)
-
-        def test_response_func(self):
-            path = EmailEntry.path_for('create')
-            data = {'email': 'hello@hello.com'}
-            reply = self._execute_request(path, data=data, method='post')
-            # using a custom response that just returns whatever
-            self.assertEqual(reply['1'], 1)
 
         def test_flaskprep(self):
             # flask is loaded so the generator is not used
