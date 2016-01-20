@@ -2,7 +2,7 @@
 from flask import Flask, request
 
 # from this project
-from test import User
+from test import User, EmailEntry
 
 app = Flask(__name__)
 
@@ -14,9 +14,11 @@ def custom_response(_):
     # Doesn't matter what is passed here, will just return empty object
     return '{"1": 1}'
 
-User.register_app(app)
+PATH_PREFIX = '/api/v0'
+
+User.register_app(app, path_prefix=PATH_PREFIX)
 User.static_route('list')
-User.static_route('create', methods=['POST'])
+User.static_route('create', func='custom_create', methods=['POST'])
 User.doc_route('get')
 User.doc_route('update', methods=['PATCH'])
 User.doc_route('remove', methods=['DELETE'])
@@ -24,6 +26,10 @@ User.doc_route('get-username')
 User.doc_route('set-username', methods=['PATCH'])
 User.doc_route('useless-function', custom_response=custom_response)
 User.static_route('useless-function', custom_response=custom_response)
+
+
+EmailEntry.register_app(app, response_func=custom_response)
+EmailEntry.static_route('create', methods=['POST'])
 
 print(app.url_map)
 

@@ -6,7 +6,9 @@ from bson.objectid import ObjectId
 import pymongo
 import requests
 
-from base import MongoSchema, MongoDoc, MongoField as MF, ValidationError
+from base import (
+    MongoSchema, MongoDoc, MongoField as MF, ValidationError, flaskprep,
+)
 
 WITH_PROFILE = False
 
@@ -39,6 +41,10 @@ class SchemaWithDict(MongoSchema):
     }
 
 
+def sayhi():
+    return 'hi'
+
+
 class UserDoc(MongoDoc):
 
     def get_username(self):
@@ -48,8 +54,10 @@ class UserDoc(MongoDoc):
         self.username = username
         return self.save()
 
-    def useless_function(self):
-        return 'hello world'
+    @flaskprep(keyword_arg=sayhi)
+    def useless_function(self, keyword_arg=None):
+        assert keyword_arg is not None
+        return 'hello world', keyword_arg
 
 
 class User(MongoSchema):
@@ -63,8 +71,15 @@ class User(MongoSchema):
     doc_class = UserDoc
 
     @classmethod
-    def useless_function(cls):
-        return 'completely useless'
+    def custom_create(cls, **kwargs):
+        kwargs['username'] += '_custom'
+        return cls.create(**kwargs)
+
+    @classmethod
+    @flaskprep(keyword_arg=sayhi)
+    def useless_function(cls, keyword_arg=None):
+        assert keyword_arg is not None
+        return 'completely useless', keyword_arg
 
 
 class UserWithCacheDisabled(MongoSchema):
@@ -540,6 +555,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
 
         def setUp(self):
             _setUp()
+            User.set_api_prefix('/api/v0')
 
         def tearDown(self):
             _tearDown()
@@ -556,9 +572,9 @@ class MongoSchemaFlaskTest(unittest.TestCase):
 
         def test_path_generation(self):
             self.assertEqual(
-                '/user/<oid>/get-username',
+                '/api/v0/user/<oid>/get-username',
                 User.doc_path_for('get-username'))
-            self.assertEqual('/user/', User.path_for())
+            self.assertEqual('/api/v0/user/', User.path_for())
 
         def _test_vanilla_get(self, user):
             dict_user = self._execute_request(user.path_for)
@@ -586,7 +602,9 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             data = {'username': u'great_user'}
             path = User.path_for()
             reply = self._execute_request(path, data=data, method='post')
-            self.assertEqual(reply['username'], data['username'])
+            # need to test if _custom was appended because a custom function
+            # was specified so go around create
+            self.assertEqual(reply['username'], data['username'] + '_custom')
 
         def test_vanilla_patch(self):
             user = _create_user()
@@ -620,6 +638,24 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             self._execute_request(path, method='delete')
             with self.assertRaises(requests.HTTPError):
                 self._execute_request(path)
+
+        def test_response_func(self):
+            path = EmailEntry.path_for('create')
+            data = {'email': 'hello@hello.com'}
+            reply = self._execute_request(path, data=data, method='post')
+            # using a custom response that just returns whatever
+            self.assertEqual(reply['1'], 1)
+
+        def test_flaskprep(self):
+            # flask is loaded so the generator is not used
+            with self.assertRaises(AssertionError):
+                User.useless_function()
+            user = _create_user()
+            with self.assertRaises(AssertionError):
+                user.useless_function()
+            User.useless_function(keyword_arg='hello')
+            user.useless_function(keyword_arg='nothing')
+
 
 if __name__ == '__main__':
     unittest.main()

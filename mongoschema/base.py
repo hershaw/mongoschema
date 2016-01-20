@@ -8,7 +8,7 @@ import copy
 from bson.objectid import ObjectId
 
 try:
-    from flask import request, Response
+    from flask import request, Response, session
 except:
     request = None
 
@@ -18,6 +18,30 @@ DICT_KEY_REPLACEMENTS = (
     ('$', '&dollar;'),
     ('.', '&period;')
 )
+
+
+def flaskprep(**prepargs):
+    """
+    Allow you do define a set of kwargs that map the name of a param to
+    a function that will be executed to provide the value of an argument
+    with the same key in the decorated function.
+
+    This is only executed if in the context of a flask app. Otherwise the
+    caller will need to provide the args themselves.
+    """
+    def real_decorator(func):
+        def wrapper(cls_or_self, **kwargs):
+            try:
+                session.items()
+            except RuntimeError:
+                # if we aren't in the context of a flask session,
+                # an exception will be thrown and we will end up here
+                return func(cls_or_self, **kwargs)
+            for key, prepfunc in prepargs.items():
+                kwargs[key] = prepfunc()
+            return func(cls_or_self, **kwargs)
+        return wrapper
+    return real_decorator
 
 
 def _getparams():
@@ -645,16 +669,36 @@ class MongoSchema(object):
     ############################################################
 
     @classmethod
-    def register_app(cls, flask_app, response_func=None):
-        if response_func is None:
-            cls._response_func = cls._default_response
-        else:
-            cls._response_func = response_func
+    def set_api_prefix(cls, path_prefix):
+        cls.api_path_scheme = path_prefix + cls.api_path_scheme
+
+    @classmethod
+    def register_app(cls, flask_app, response_func=None, path_prefix=None):
+        if path_prefix is not None:
+            cls.set_api_prefix(path_prefix)
+        cls._custom_response_func = None
+        if response_func is not None:
+            # have to wrap it up in a dictionary so it doesn't get
+            # bound to the class and expect to become a static member
+            cls._custom_response_func = {'func': response_func}
         cls._flask_app = flask_app
 
     @classmethod
+    def _flask_response(cls, reply):
+        if cls._custom_response_func:
+            return cls._custom_response_func['func'](reply)
+        else:
+            return cls._default_response(reply)
+
+    @classmethod
     def _default_response(cls, retval):
-        return json.dumps(retval, cls=MongoEncoder)
+        if request.method == 'POST':
+            status = 201
+        elif request.method in ('GET', 'DELETE', 'PUT', 'PATCH'):
+            status = 200
+        json_str = json.dumps(retval, cls=MongoEncoder)
+        resp = Response(json_str, mimetype='application/json', status=status)
+        return resp
 
     @classmethod
     def _doc_route(cls, name=None, custom_response=None):
@@ -662,7 +706,7 @@ class MongoSchema(object):
             md = cls.get(id=oid)
             if md is None:
                 return Response(None, status=404)
-            response_func = custom_response or cls._response_func
+            response_func = custom_response or cls._flask_response
             if name == 'get':
                 retval = md
             elif name == 'remove':
@@ -698,12 +742,12 @@ class MongoSchema(object):
     @classmethod
     def _static_route(cls, name=None, custom_response=None):
         def real_route():
-            response_func = custom_response or cls._response_func
             if name is None:
                 retval = cls.list()
             else:
                 params = _getparams()
                 retval = getattr(cls, name)(**params)
+            response_func = custom_response or cls._flask_response
             return response_func(retval)
         return real_route
 
@@ -715,9 +759,10 @@ class MongoSchema(object):
         return path
 
     @classmethod
-    def static_route(cls, name=None, custom_response=None, **kwargs):
+    def static_route(cls, name=None, custom_response=None, func=None,
+                     **kwargs):
         clsname = cls.__name__
-        funcname = _functionify(name)
+        funcname = _functionify(func or name)
         path = cls.path_for(name=name)
         route = cls._static_route(funcname, custom_response=custom_response)
         cls._flask_app.add_url_rule(path, '%s.%s' % (clsname, funcname), route,
