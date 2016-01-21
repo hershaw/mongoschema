@@ -26,6 +26,10 @@ RESPONSE_FUNC = None
 
 
 def register_flask_app(app, prefix, response_func=None):
+    """
+    Call this once (probably should be done in your server) to register
+    the instance of the flask app that will be using the models.
+    """
     global FLASK_APP, RESPONSE_FUNC
     FLASK_APP = app
     RESPONSE_FUNC = response_func
@@ -713,18 +717,29 @@ class MongoSchema(object):
 
     @classmethod
     def _doc_route(cls, name=None, custom_response=None):
+        """
+        Generates the function that will be registered with flask.
+        """
         def real_route(oid):
+            """
+            This is the actual function that will be executed by flask when
+            the route corresponding to the doc_route is matched..
+            """
             md = cls.get(id=oid)
             if md is None:
-                return Response(None, status=404)
+                return Response(
+                    '%s<%s> not found' % (cls.__name__, oid), status=404)
             response_func = custom_response or cls._flask_response
             if name == 'get':
                 retval = md
             elif name == 'remove':
                 md.remove()
                 retval = oid
+            elif name == 'update':
+                retval = md.update(_getparams())
             elif name is not None:
                 params = _getparams()
+                print(name, params)
                 retval = getattr(md, name)(**params)
             else:
                 retval = md

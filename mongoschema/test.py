@@ -1,6 +1,7 @@
 import unittest
 import os
 import re
+import json
 
 from bson.objectid import ObjectId
 import pymongo
@@ -50,6 +51,12 @@ class UserDoc(MongoDoc):
 
     def get_username(self):
         return self.username
+
+    def get_with_params(self, param1, param2):
+        """
+        Used for testing in flask_test_server.py
+        """
+        return {'param1': param1, 'param2': param2}
 
     def set_username(self, username=None):
         self.username = username
@@ -190,6 +197,7 @@ class WithOptionalField(MongoSchema):
 # the classes are used
 
 def _setUp():
+    conn.drop_database(TEST_DB_NAME)
     MongoSchema.clear_cache_and_init()
 
 
@@ -565,7 +573,10 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             url = 'http://localhost:9002' + path
             func = getattr(requests, method)
             if method == 'get':
-                reply = func(url, params=data)
+                params = None
+                if data:
+                    params = {'json': json.dumps(data)}
+                reply = func(url, params=params)
             else:
                 reply = func(url, json=data)
             reply.raise_for_status()
@@ -649,6 +660,22 @@ class MongoSchemaFlaskTest(unittest.TestCase):
                 user.useless_function()
             User.useless_function(keyword_arg='hello')
             user.useless_function(keyword_arg='nothing')
+
+        def test_get_with_params(self):
+            """
+            We expect params via get() to be passed within a single parameter
+            called json and map to a json-parsable structure so that types
+            are preserved (they would be lost as regular url params)
+            """
+            user = _create_user()
+            path = User.doc_path_for('get-with-params', oid=user.id)
+            # first try to make the request without the params
+            with self.assertRaises(requests.HTTPError):
+                self._execute_request(path)
+            data = {'param1': 1, 'param2': True}
+            reply = self._execute_request(path, data=data)
+            self.assertEqual(reply['param1'], data['param1'])
+            self.assertEqual(reply['param2'], data['param2'])
 
 
 if __name__ == '__main__':
