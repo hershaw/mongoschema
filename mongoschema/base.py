@@ -25,6 +25,16 @@ API_PREFIX = None
 RESPONSE_FUNC = None
 
 
+class AuthError(Exception):
+    """
+    Can be raised inside of any of the auth functions registered with
+    the code as the first argument. This code will the be returned by flask.
+    """
+    def __init__(self, status, msg=''):
+        self.status = status
+        self.msg = msg
+
+
 def register_flask_app(app, prefix, response_func=None):
     """
     Call this once (probably should be done in your server) to register
@@ -329,6 +339,10 @@ class MongoSchemaWatcher(type):
 class MongoSchema(object):
 
     __metaclass__ = MongoSchemaWatcher
+
+    # for flask auth functions
+    _doc_auth_func = None
+    _static_auth_func = None
 
     collection = None
     schema = {
@@ -716,7 +730,17 @@ class MongoSchema(object):
         return resp
 
     @classmethod
-    def _doc_route(cls, name=None, custom_response=None):
+    def _get_doc_auth_func(cls):
+        if cls._doc_auth_func:
+            return cls._doc_auth_func.__func__
+
+    @classmethod
+    def _get_static_auth_func(cls):
+        if cls._static_auth_func:
+            return cls._static_auth_func.__func__
+
+    @classmethod
+    def _doc_route(cls, name=None, custom_response=None, auth=None):
         """
         Generates the function that will be registered with flask.
         """
@@ -729,6 +753,14 @@ class MongoSchema(object):
             if md is None:
                 return Response(
                     '%s<%s> not found' % (cls.__name__, oid), status=404)
+            authfunc = auth or cls._get_doc_auth_func()
+            if authfunc:
+                # unfortunately, a lot of this code is duplicated in
+                # _static_route as well
+                try:
+                    authfunc(md)
+                except AuthError as e:
+                    return Response(e.msg, status=e.status)
             response_func = custom_response or cls._flask_response
             if name == 'get':
                 retval = md
@@ -739,7 +771,7 @@ class MongoSchema(object):
                 retval = md.update(_getparams())
             elif name is not None:
                 params = _getparams()
-                print(name, params)
+                print(params)
                 retval = getattr(md, name)(**params)
             else:
                 retval = md
@@ -756,23 +788,35 @@ class MongoSchema(object):
         return path
 
     @classmethod
-    def doc_route(cls, name, custom_response=None, **kwargs):
+    def doc_route(cls, name, custom_response=None, auth=None, **kwargs):
         clsname = cls.__name__
         path = cls.doc_path_for(name=name)
         funcname = _functionify(name)
-        FLASK_APP.add_url_rule(
-            path, '%s.doc.%s' % (clsname, funcname),
-            cls._doc_route(funcname, custom_response=custom_response),
-            **kwargs)
+        routename = '%s.doc.%s' % (clsname, funcname)
+        routefunc = cls._doc_route(
+            funcname, custom_response=custom_response, auth=auth)
+        FLASK_APP.add_url_rule(path, routename, routefunc, **kwargs)
 
     @classmethod
-    def _static_route(cls, name=None, custom_response=None):
+    def _static_route(cls, name=None, custom_response=None, auth=None):
         def real_route():
+            authfunc = auth or cls._get_static_auth_func()
+            if authfunc:
+                try:
+                    # unfortunately, a lot of this code is duplicated in
+                    # _static_route as well
+                    authfunc()
+                except AuthError as e:
+                    return Response(e.msg, status=e.status)
             if name is None:
                 retval = cls.list()
             else:
                 params = _getparams()
-                retval = getattr(cls, name)(**params)
+                tocall = getattr(cls, name)
+                if params is None:
+                    retval = tocall()
+                else:
+                    retval = tocall(**params)
             response_func = custom_response or cls._flask_response
             return response_func(retval)
         return real_route
@@ -786,10 +830,16 @@ class MongoSchema(object):
 
     @classmethod
     def static_route(cls, name=None, custom_response=None, func=None,
-                     **kwargs):
+                     auth=None, **kwargs):
         clsname = cls.__name__
         funcname = _functionify(func or name)
         path = cls.path_for(name=name)
-        route = cls._static_route(funcname, custom_response=custom_response)
+        route = cls._static_route(
+            funcname, custom_response=custom_response, auth=auth)
         FLASK_APP.add_url_rule(path, '%s.%s' % (clsname, funcname), route,
                                **kwargs)
+
+    @classmethod
+    def set_auth(cls, doc_auth_func=None, static_auth_func=None):
+        cls._doc_auth_func = doc_auth_func
+        cls._static_auth_func = static_auth_func

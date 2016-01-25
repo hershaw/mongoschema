@@ -184,6 +184,10 @@ class EmailEntry(MongoSchema):
         'email': MF(unicode, validate_regexp=re.compile('[^@]+@[^@]+\.[^@]+'))
     }
 
+    @classmethod
+    def custom_static(cls):
+        return 'this is a custom static function for testing flask auth'
+
 
 class WithOptionalField(MongoSchema):
     collection = db.with_optional_field
@@ -569,16 +573,16 @@ class MongoSchemaFlaskTest(unittest.TestCase):
         def tearDown(self):
             _tearDown()
 
-        def _execute_request(self, path, data=None, method='get'):
+        def _execute_request(self, path, data=None, params=None, method='get'):
             url = 'http://localhost:9002' + path
             func = getattr(requests, method)
             if method == 'get':
-                params = None
+                params = params or {}
                 if data:
-                    params = {'json': json.dumps(data)}
+                    params['json'] = json.dumps(data)
                 reply = func(url, params=params)
             else:
-                reply = func(url, json=data)
+                reply = func(url, json=data, params=params)
             reply.raise_for_status()
             return reply.json()
 
@@ -677,6 +681,28 @@ class MongoSchemaFlaskTest(unittest.TestCase):
             self.assertEqual(reply['param1'], data['param1'])
             self.assertEqual(reply['param2'], data['param2'])
 
+        def test_auth(self):
+            email = 'sam@gmail.com'
+            create_path = EmailEntry.path_for('create')
+            create_data = {'email': email}
+            with self.assertRaises(requests.HTTPError):
+                self._execute_request(
+                    create_path, data=create_data, method='post')
+            email_entry = self._execute_request(
+                create_path, data=create_data,
+                params={'authparam': 'default_static'}, method='post')
+            path = EmailEntry.path_for('custom_static')
+            with self.assertRaises(requests.HTTPError):
+                self._execute_request(path)
+            self._execute_request(
+                path, params={'authparam': 'admin_for_real'}, method='post')
+            path = EmailEntry.doc_path_for('update', oid=email_entry['id'])
+            data = {'email': 'new@email.com'}
+            with self.assertRaises(requests.HTTPError):
+                self._execute_request(path, data=data, method='patch')
+            self._execute_request(
+                path, data=data, params={'authparam': 'even_more_secret'},
+                method='patch')
 
 if __name__ == '__main__':
     unittest.main()
