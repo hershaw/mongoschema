@@ -771,7 +771,6 @@ class MongoSchema(object):
                 retval = md.update(_getparams())
             elif name is not None:
                 params = _getparams()
-                print(params)
                 retval = getattr(md, name)(**params)
             else:
                 retval = md
