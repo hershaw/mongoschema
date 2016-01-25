@@ -787,10 +787,14 @@ class MongoSchema(object):
         return path
 
     @classmethod
-    def doc_route(cls, name, custom_response=None, auth=None, **kwargs):
+    def doc_route(cls, name, func=None, custom_response=None, auth=None,
+                  **kwargs):
         clsname = cls.__name__
         path = cls.doc_path_for(name=name)
-        funcname = _functionify(name)
+        if func:
+            funcname = func
+        else:
+            funcname = _functionify(name)
         routename = '%s.doc.%s' % (clsname, funcname)
         routefunc = cls._doc_route(
             funcname, custom_response=custom_response, auth=auth)
