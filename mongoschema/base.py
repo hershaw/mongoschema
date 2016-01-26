@@ -749,32 +749,30 @@ class MongoSchema(object):
             This is the actual function that will be executed by flask when
             the route corresponding to the doc_route is matched..
             """
-            md = cls.get(id=oid)
-            if md is None:
-                return Response(
-                    '%s<%s> not found' % (cls.__name__, oid), status=404)
-            authfunc = auth or cls._get_doc_auth_func()
-            if authfunc:
-                # unfortunately, a lot of this code is duplicated in
-                # _static_route as well
-                try:
+            try:
+                md = cls.get(id=oid)
+                if md is None:
+                    return Response(
+                        '%s<%s> not found' % (cls.__name__, oid), status=404)
+                authfunc = auth or cls._get_doc_auth_func()
+                if authfunc:
                     authfunc(md)
-                except AuthError as e:
-                    return Response(e.msg, status=e.status)
-            response_func = custom_response or cls._flask_response
-            if name == 'get':
-                retval = md
-            elif name == 'remove':
-                md.remove()
-                retval = oid
-            elif name == 'update':
-                retval = md.update(_getparams())
-            elif name is not None:
-                params = _getparams()
-                retval = getattr(md, name)(**params)
-            else:
-                retval = md
-            return response_func(retval)
+                response_func = custom_response or cls._flask_response
+                if name == 'get':
+                    retval = md
+                elif name == 'remove':
+                    md.remove()
+                    retval = oid
+                elif name == 'update':
+                    retval = md.update(_getparams())
+                elif name is not None:
+                    params = _getparams()
+                    retval = getattr(md, name)(**params)
+                else:
+                    retval = md
+                return response_func(retval)
+            except AuthError as e:
+                return Response(e.msg, status=e.status)
         return real_route
 
     @classmethod
@@ -803,25 +801,23 @@ class MongoSchema(object):
     @classmethod
     def _static_route(cls, name=None, custom_response=None, auth=None):
         def real_route():
-            authfunc = auth or cls._get_static_auth_func()
-            if authfunc:
-                try:
-                    # unfortunately, a lot of this code is duplicated in
-                    # _static_route as well
+            try:
+                authfunc = auth or cls._get_static_auth_func()
+                if authfunc:
                     authfunc()
-                except AuthError as e:
-                    return Response(e.msg, status=e.status)
-            if name is None:
-                retval = cls.list()
-            else:
-                params = _getparams()
-                tocall = getattr(cls, name)
-                if params is None:
-                    retval = tocall()
+                if name is None:
+                    retval = cls.list()
                 else:
-                    retval = tocall(**params)
-            response_func = custom_response or cls._flask_response
-            return response_func(retval)
+                    params = _getparams()
+                    tocall = getattr(cls, name)
+                    if params is None:
+                        retval = tocall()
+                    else:
+                        retval = tocall(**params)
+                response_func = custom_response or cls._flask_response
+                return response_func(retval)
+            except AuthError as e:
+                return Response(e.msg, status=e.status)
         return real_route
 
     @classmethod
