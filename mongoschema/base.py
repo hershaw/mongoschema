@@ -30,7 +30,7 @@ class AuthError(Exception):
     Can be raised inside of any of the auth functions registered with
     the code as the first argument. This code will the be returned by flask.
     """
-    def __init__(self, status, msg=''):
+    def __init__(self, msg='', status=401):
         self.status = status
         self.msg = msg
 
