@@ -839,6 +839,6 @@ class MongoSchema(object):
                                **kwargs)
 
     @classmethod
-    def set_auth(cls, doc_auth_func=None, static_auth_func=None):
-        cls._doc_auth_func = doc_auth_func
-        cls._static_auth_func = static_auth_func
+    def set_auth(cls, doc=None, static=None):
+        cls._doc_auth_func = doc
+        cls._static_auth_func = static
