@@ -6,6 +6,7 @@ import copy
 
 # 3rd party
 from bson.objectid import ObjectId
+import bson
 
 try:
     from flask import request, Response, session
@@ -768,11 +769,11 @@ class MongoSchema(object):
                 elif name is not None:
                     params = _getparams()
                     retval = getattr(md, name)(**params)
-                else:
-                    retval = md
                 return response_func(retval)
             except AuthError as e:
                 return Response(e.msg, status=e.status)
+            except bson.errors.InvalidId as e:
+                return Response(str(e), status=404)
         return real_route
 
     @classmethod

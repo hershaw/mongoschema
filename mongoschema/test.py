@@ -566,143 +566,153 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
 class MongoSchemaFlaskTest(unittest.TestCase):
 
-        def setUp(self):
-            _setUp()
-            set_api_prefix('/api/v0')
+    def setUp(self):
+        _setUp()
+        set_api_prefix('/api/v0')
 
-        def tearDown(self):
-            _tearDown()
+    def tearDown(self):
+        _tearDown()
 
-        def _execute_request(self, path, data=None, params=None, method='get'):
-            url = 'http://localhost:9002' + path
-            func = getattr(requests, method)
-            if method == 'get':
-                params = params or {}
-                if data:
-                    params['json'] = json.dumps(data)
-                reply = func(url, params=params)
-            else:
-                reply = func(url, json=data, params=params)
+    def _execute_request(self, path, data=None, params=None, method='get',
+                         return_resp=False):
+        url = 'http://localhost:9002' + path
+        func = getattr(requests, method)
+        if method == 'get':
+            params = params or {}
+            if data:
+                params['json'] = json.dumps(data)
+            reply = func(url, params=params)
+        else:
+            reply = func(url, json=data, params=params)
+        if return_resp:
+            return reply
+        else:
             reply.raise_for_status()
             return reply.json()
 
-        def test_path_generation(self):
-            self.assertEqual(
-                '/api/v0/user/<oid>/get-username',
-                User.doc_path_for('get-username'))
-            self.assertEqual('/api/v0/user/', User.path_for())
+    def test_path_generation(self):
+        self.assertEqual(
+            '/api/v0/user/<oid>/get-username',
+            User.doc_path_for('get-username'))
+        self.assertEqual('/api/v0/user/', User.path_for())
 
-        def _test_vanilla_get(self, user):
-            dict_user = self._execute_request(user.path_for)
-            self.assertEqual(str(user.id), dict_user['id'])
+    def _test_vanilla_get(self, user):
+        dict_user = self._execute_request(user.path_for)
+        self.assertEqual(str(user.id), dict_user['id'])
 
-        def _test_get_single_field(self, user):
-            username = self._execute_request(
-                User.doc_path_for('get-username', oid=user.id))
-            self.assertEqual(username, user.username)
+    def _test_get_single_field(self, user):
+        username = self._execute_request(
+            User.doc_path_for('get-username', oid=user.id))
+        self.assertEqual(username, user.username)
 
-        def _test_vanilla_list(self, user):
-            user2 = _create_user(username=u'u2')
-            all_users = self._execute_request(User.path_for())
-            self.assertEqual(len(all_users), 2)
-            self.assertEqual(all_users[0]['id'], str(user.id))
-            self.assertEqual(all_users[1]['id'], str(user2.id))
+    def _test_vanilla_list(self, user):
+        user2 = _create_user(username=u'u2')
+        all_users = self._execute_request(User.path_for())
+        self.assertEqual(len(all_users), 2)
+        self.assertEqual(all_users[0]['id'], str(user.id))
+        self.assertEqual(all_users[1]['id'], str(user2.id))
 
-        def test_get(self):
-            user = _create_user()
-            self._test_vanilla_get(user)
-            self._test_get_single_field(user)
-            self._test_vanilla_list(user)
+    def test_get(self):
+        user = _create_user()
+        self._test_vanilla_get(user)
+        self._test_get_single_field(user)
+        self._test_vanilla_list(user)
 
-        def test_create(self):
-            data = {'username': u'great_user'}
-            path = User.path_for()
-            reply = self._execute_request(path, data=data, method='post')
-            # need to test if _custom was appended because a custom function
-            # was specified so go around create
-            self.assertEqual(reply['username'], data['username'] + '_custom')
+    def test_create(self):
+        data = {'username': u'great_user'}
+        path = User.path_for()
+        reply = self._execute_request(path, data=data, method='post')
+        # need to test if _custom was appended because a custom function
+        # was specified so go around create
+        self.assertEqual(reply['username'], data['username'] + '_custom')
 
-        def test_vanilla_patch(self):
-            user = _create_user()
-            path = User.doc_path_for(oid=user.id)
-            data = {'username': u'new_username'}
-            reply = self._execute_request(path, data=data, method='patch')
-            self.assertTrue(reply['username'], data['username'])
+    def test_vanilla_patch(self):
+        user = _create_user()
+        path = User.doc_path_for(oid=user.id)
+        data = {'username': u'new_username'}
+        reply = self._execute_request(path, data=data, method='patch')
+        self.assertTrue(reply['username'], data['username'])
 
-        def test_custom_patch(self):
-            user = _create_user()
-            new_username = u'u2'
-            data = {'username': new_username}
-            path = User.doc_path_for('set-username', oid=user.id)
-            reply = self._execute_request(path, data=data, method='patch')
-            self.assertEqual(reply['username'], new_username)
+    def test_custom_patch(self):
+        user = _create_user()
+        new_username = u'u2'
+        data = {'username': new_username}
+        path = User.doc_path_for('set-username', oid=user.id)
+        reply = self._execute_request(path, data=data, method='patch')
+        self.assertEqual(reply['username'], new_username)
 
-        def test_custom_response(self):
-            user = _create_user()
-            path = User.doc_path_for('useless-function', oid=user.id)
-            reply = self._execute_request(path)
-            self.assertEqual(reply, {"1": 1})
+    def test_custom_response(self):
+        user = _create_user()
+        path = User.doc_path_for('useless-function', oid=user.id)
+        reply = self._execute_request(path)
+        self.assertEqual(reply, {"1": 1})
 
-        def test_static_custom_response(self):
-            path = User.path_for('useless-function')
-            reply = self._execute_request(path)
-            self.assertEqual(reply, {"1": 1})
+    def test_static_custom_response(self):
+        path = User.path_for('useless-function')
+        reply = self._execute_request(path)
+        self.assertEqual(reply, {"1": 1})
 
-        def test_remove(self):
-            user = _create_user()
-            path = User.doc_path_for('remove', oid=str(user.id))
-            self._execute_request(path, method='delete')
-            with self.assertRaises(requests.HTTPError):
-                self._execute_request(path)
+    def test_remove(self):
+        user = _create_user()
+        path = User.doc_path_for('remove', oid=str(user.id))
+        self._execute_request(path, method='delete')
+        with self.assertRaises(requests.HTTPError):
+            self._execute_request(path)
 
-        def test_flaskprep(self):
-            # flask is loaded so the generator is not used
-            with self.assertRaises(AssertionError):
-                User.useless_function()
-            user = _create_user()
-            with self.assertRaises(AssertionError):
-                user.useless_function()
-            User.useless_function(keyword_arg='hello')
-            user.useless_function(keyword_arg='nothing')
+    def test_flaskprep(self):
+        # flask is loaded so the generator is not used
+        with self.assertRaises(AssertionError):
+            User.useless_function()
+        user = _create_user()
+        with self.assertRaises(AssertionError):
+            user.useless_function()
+        User.useless_function(keyword_arg='hello')
+        user.useless_function(keyword_arg='nothing')
 
-        def test_get_with_params(self):
-            """
-            We expect params via get() to be passed within a single parameter
-            called json and map to a json-parsable structure so that types
-            are preserved (they would be lost as regular url params)
-            """
-            user = _create_user()
-            path = User.doc_path_for('get-with-params', oid=user.id)
-            # first try to make the request without the params
-            with self.assertRaises(requests.HTTPError):
-                self._execute_request(path)
-            data = {'param1': 1, 'param2': True}
-            reply = self._execute_request(path, data=data)
-            self.assertEqual(reply['param1'], data['param1'])
-            self.assertEqual(reply['param2'], data['param2'])
+    def test_get_with_params(self):
+        """
+        We expect params via get() to be passed within a single parameter
+        called json and map to a json-parsable structure so that types
+        are preserved (they would be lost as regular url params)
+        """
+        user = _create_user()
+        path = User.doc_path_for('get-with-params', oid=user.id)
+        # first try to make the request without the params
+        with self.assertRaises(requests.HTTPError):
+            self._execute_request(path)
+        data = {'param1': 1, 'param2': True}
+        reply = self._execute_request(path, data=data)
+        self.assertEqual(reply['param1'], data['param1'])
+        self.assertEqual(reply['param2'], data['param2'])
 
-        def test_auth(self):
-            email = 'sam@gmail.com'
-            create_path = EmailEntry.path_for('create')
-            create_data = {'email': email}
-            with self.assertRaises(requests.HTTPError):
-                self._execute_request(
-                    create_path, data=create_data, method='post')
-            email_entry = self._execute_request(
-                create_path, data=create_data,
-                params={'authparam': 'default_static'}, method='post')
-            path = EmailEntry.path_for('custom_static')
-            with self.assertRaises(requests.HTTPError):
-                self._execute_request(path)
+    def test_auth(self):
+        email = 'sam@gmail.com'
+        create_path = EmailEntry.path_for('create')
+        create_data = {'email': email}
+        with self.assertRaises(requests.HTTPError):
             self._execute_request(
-                path, params={'authparam': 'admin_for_real'}, method='post')
-            path = EmailEntry.doc_path_for('update', oid=email_entry['id'])
-            data = {'email': 'new@email.com'}
-            with self.assertRaises(requests.HTTPError):
-                self._execute_request(path, data=data, method='patch')
-            self._execute_request(
-                path, data=data, params={'authparam': 'even_more_secret'},
-                method='patch')
+                create_path, data=create_data, method='post')
+        email_entry = self._execute_request(
+            create_path, data=create_data,
+            params={'authparam': 'default_static'}, method='post')
+        path = EmailEntry.path_for('custom_static')
+        with self.assertRaises(requests.HTTPError):
+            self._execute_request(path)
+        self._execute_request(
+            path, params={'authparam': 'admin_for_real'}, method='post')
+        path = EmailEntry.doc_path_for('update', oid=email_entry['id'])
+        data = {'email': 'new@email.com'}
+        with self.assertRaises(requests.HTTPError):
+            self._execute_request(path, data=data, method='patch')
+        self._execute_request(
+            path, data=data, params={'authparam': 'even_more_secret'},
+            method='patch')
+
+    def test_with_bad_oid(self):
+        path = User.doc_path_for('get', oid='asdf')
+        resp = self._execute_request(path, return_resp=True)
+        self.assertEqual(resp.status_code, 404)
+
 
 if __name__ == '__main__':
     unittest.main()
