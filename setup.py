@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='mongoschema',
-    version='4',
+    version='5',
     description='lightweight MongoDB ORM on pymongo',
     url='http://github.com/hershaw/mongoschema',
     author='Sam Hopkins',
