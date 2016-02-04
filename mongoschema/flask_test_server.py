@@ -2,8 +2,8 @@
 from flask import Flask, request
 
 # from this project
-from test import User, EmailEntry
-from base import register_flask_app, AuthError
+from mongoschema.test import User, EmailEntry
+from mongoschema.base import register_flask_app, AuthError
 
 app = Flask(__name__)
 
@@ -33,19 +33,19 @@ User.doc_route('useless-function', custom_response=custom_response)
 def default_auth(*args):
     if not request.args.get('authparam') == 'supersecret':
         print('authparam is not supersecret')
-        raise AuthError(401)
+        raise AuthError(status=401)
 
 
 def custom_auth(email):
     if not request.args.get('authparam') == 'even_more_secret':
         print('authparam is not even more secret')
-        raise AuthError(404)
+        raise AuthError(status=404)
 
 
 def default_static():
     if not request.args.get('authparam') == 'default_static':
-        print('authparams (%s) is not default_static' % request.args)
-        raise AuthError(404)
+        print(('authparams (%s) is not default_static' % request.args))
+        raise AuthError(status=404)
 
 
 def custom_static():
@@ -60,7 +60,7 @@ EmailEntry.static_route('custom_static', auth=custom_static, methods=['POST'])
 EmailEntry.static_route('create', methods=['POST'])
 EmailEntry.doc_route('update', methods=['PATCH'], auth=custom_auth)
 
-print(app.url_map)
+print((app.url_map))
 
 if __name__ == '__main__':
     app.run(port=9002)

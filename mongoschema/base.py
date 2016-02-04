@@ -66,12 +66,12 @@ def flaskprep(**prepargs):
     def real_decorator(func):
         def wrapper(cls_or_self, **kwargs):
             try:
-                session.items()
+                list(session.items())
             except RuntimeError:
                 # if we aren't in the context of a flask session,
                 # an exception will be thrown and we will end up here
                 return func(cls_or_self, **kwargs)
-            for key, prepfunc in prepargs.items():
+            for key, prepfunc in list(prepargs.items()):
                 kwargs[key] = prepfunc()
             return func(cls_or_self, **kwargs)
         return wrapper
@@ -141,7 +141,7 @@ class NoValue(object):
         return ''
 
     def __unicode__(self):
-        return u''
+        return ''
 
     def __bool__(self):
         return False
@@ -226,7 +226,7 @@ class MongoDoc(object):
     def __delitem__(self, key):
         del self.doc[key]
         q, up = {'_id': self.id}, {'$unset': {key: True}}
-        self.ms.collection.update(q, up)
+        self.ms.collection.update_one(q, up)
 
     def save(self):
         self.ms._writedoc(self.doc, 'update')
@@ -244,7 +244,7 @@ class MongoDoc(object):
         self.ms.remove(id=self.id)
 
     def __unicode__(self):
-        return unicode(self.__str__())
+        return str(self.__str__())
 
     def to_dict(self):
         if not self.ms.todict_follow_references:
@@ -273,7 +273,7 @@ class MongoDoc(object):
         self.__setattr__(key, value)
         q = {'_id': self.id}
         up = {'$set': {key: value}}
-        self.ms.collection.update(q, up)
+        self.ms.collection.update_one(q, up)
 
     @property
     def path_for(self):
@@ -337,11 +337,8 @@ class MongoSchemaWatcher(type):
         super(MongoSchemaWatcher, cls).__init__(name, bases, clsdict)
 
 
-class MongoSchema(object):
+class MongoSchema(object, metaclass=MongoSchemaWatcher):
 
-    __metaclass__ = MongoSchemaWatcher
-
-    # for flask auth functions
     _doc_auth_func = None
     _static_auth_func = None
 
@@ -407,7 +404,7 @@ class MongoSchema(object):
             else:
                 index = index_kwargs
                 ikwargs = {}
-            cls.collection.ensure_index(index, **ikwargs)
+            cls.collection.create_index(index, **ikwargs)
 
     @classmethod
     def _initschema(cls):
@@ -507,11 +504,11 @@ class MongoSchema(object):
         cls._validate(doc)
         cls._fordb(doc)
         if insert_or_save == 'insert':
-            cls.collection.insert(doc)
+            cls.collection.insert_one(doc)
         elif insert_or_save == 'update':
             docid = doc['_id']
             del doc['_id']
-            cls.collection.update({'_id': docid}, {'$set': doc})
+            cls.collection.update_one({'_id': docid}, {'$set': doc})
             doc['_id'] = docid
         else:
             raise ValueError('expected "insert" or "save"')
@@ -705,7 +702,7 @@ class MongoSchema(object):
             kwargs['_id'] = kwargs['id']
             del kwargs['id']
         for doc in cls.collection.find(kwargs, projection={'_id': True}):
-            cls.collection.remove(doc)
+            cls.collection.delete_one(doc)
             if cls.cache_enabled:
                 cls._remove_from_cache(doc['_id'])
 
@@ -733,12 +730,12 @@ class MongoSchema(object):
     @classmethod
     def _get_doc_auth_func(cls):
         if cls._doc_auth_func:
-            return cls._doc_auth_func.__func__
+            return cls._doc_auth_func
 
     @classmethod
     def _get_static_auth_func(cls):
         if cls._static_auth_func:
-            return cls._static_auth_func.__func__
+            return cls._static_auth_func
 
     @classmethod
     def _doc_route(cls, name=None, custom_response=None, auth=None):

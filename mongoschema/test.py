@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 import pymongo
 import requests
 
-from base import (
+from mongoschema.base import (
     MongoSchema, MongoDoc, MongoField as MF, ValidationError, flaskprep,
     set_api_prefix,
 )
@@ -30,7 +30,7 @@ class Referencer(MongoSchema):
 class Referenced(MongoSchema):
     collection = db.referenced
     schema = {
-        'nothing': MF(unicode),
+        'nothing': MF(str),
         'referencer': MF('test.Referencer', required=False),
     }
 
@@ -71,7 +71,7 @@ class UserDoc(MongoDoc):
 class User(MongoSchema):
     collection = db.user
     schema = {
-        'username': MF(unicode),
+        'username': MF(str),
     }
     indexes = [
         ['username', {'unique': True}],
@@ -93,7 +93,7 @@ class User(MongoSchema):
 class UserWithCacheDisabled(MongoSchema):
     collection = db.user
     schema = {
-        'username': MF(unicode),
+        'username': MF(str),
     }
     indexes = [
         ['username', {'unique': True}],
@@ -105,10 +105,10 @@ class UserWithCacheDisabled(MongoSchema):
 class UserAfterChanges(MongoSchema):
     collection = db.user_after_changes
     schema = {
-        'username': MF(unicode),
+        'username': MF(str),
         # this field was added so there will be some users in the database
         # without it. test that the fields are filled in correctly.
-        'lang': MF(unicode, default='en'),
+        'lang': MF(str, default='en'),
     }
     indexes = [
         ['username', {'unique': True}],
@@ -118,7 +118,7 @@ class UserAfterChanges(MongoSchema):
 class Farmer(User):
     collection = db.farmer
     schema = {
-        'farm_name': MF(unicode)
+        'farm_name': MF(str)
     }
     schema.update(User.schema)
 
@@ -138,8 +138,8 @@ class Email(MongoSchema):
     collection = db.email
     schema = {
         'user': MF(User),
-        'subject': MF(unicode),
-        'body': MF(unicode),
+        'subject': MF(str),
+        'body': MF(str),
     }
     indexes = [
         'user',
@@ -181,7 +181,7 @@ class SchemaWithList(MongoSchema):
 class EmailEntry(MongoSchema):
     collection = db.email_entry
     schema = {
-        'email': MF(unicode, validate_regexp=re.compile('[^@]+@[^@]+\.[^@]+'))
+        'email': MF(str, validate_regexp=re.compile('[^@]+@[^@]+\.[^@]+'))
     }
 
     @classmethod
@@ -192,7 +192,7 @@ class EmailEntry(MongoSchema):
 class WithOptionalField(MongoSchema):
     collection = db.with_optional_field
     schema = {
-        'field': MF(unicode, required=False),
+        'field': MF(str, required=False),
     }
 
 
@@ -209,7 +209,7 @@ def _tearDown():
     conn.drop_database(TEST_DB_NAME)
 
 
-def _create_user(username=u'this is a test'):
+def _create_user(username='this is a test'):
     return User.create(username=username)
 
 
@@ -222,7 +222,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         _tearDown()
 
     def _create_email(self, user):
-        return Email.create(user=user, subject=u'subject', body=u'body')
+        return Email.create(user=user, subject='subject', body='body')
 
     def _get_field_from_db(self, doc, field):
         raw_doc = doc.ms.collection.find_one({'_id': doc.id})
@@ -246,16 +246,12 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             User.create(username=1)
 
         with self.assertRaises(ValidationError):
-            # should fail a type error
-            User.create(username='should be unicode')
-
-        with self.assertRaises(ValidationError):
             # testing with key not in schema
-            User.create(username=u'asdf', blah='nothing')
+            User.create(username='asdf', blah='nothing')
 
     def test_update(self):
         user = _create_user()
-        newname = u'anothername'
+        newname = 'anothername'
         user.username = newname
         user.save()
         self.assertEqual(user.username, newname)
@@ -264,13 +260,13 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     def test_compound_index(self):
         self._create_email(_create_user())
         index_info = Email.collection.index_information()
-        self.assertTrue(u'subject_-1_body_-1' in index_info)
+        self.assertTrue('subject_-1_body_-1' in index_info)
 
     def test_set_mongoschema(self):
         user = _create_user()
         email = self._create_email(user)
         self.assertTrue(user is email.user)
-        other_user = _create_user(username=u'another')
+        other_user = _create_user(username='another')
         email.user = other_user
         email.save()
         self.assertTrue(email.user is other_user)
@@ -281,10 +277,10 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         # actually compare memory addresses so we know the cache
         # is working
         self.assertTrue(email.user is user)
-        email.user.username = u'a new name'
+        email.user.username = 'a new name'
         self.assertEqual(email.user.username, user.username)
         email.user.save()
-        self._compare_with_db(user, u'username')
+        self._compare_with_db(user, 'username')
 
     def test_reference_query(self):
         user = _create_user()
@@ -321,8 +317,8 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     """
 
     def test_list_definition(self):
-        user1 = User.create(username=u'bob')
-        user2 = User.create(username=u'sally')
+        user1 = User.create(username='bob')
+        user2 = User.create(username='sally')
         with_list = SchemaWithList.create(
             users=[user1, user2],
             numbers=[1, 2, 3]
@@ -375,14 +371,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def _create_farmer(self):
         farmer = Farmer.create(
-            username=u'farmer_john',
-            farm_name=u'farm name 1'
+            username='farmer_john',
+            farm_name='farm name 1'
         )
         return farmer
 
     def test_schema_inheritence(self):
         farmer = self._create_farmer()
-        farmer.farm_name = u'farm name 2'
+        farmer.farm_name = 'farm name 2'
         farmer.save()
         self._compare_with_db(farmer, 'farm_name')
 
@@ -404,9 +400,9 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_regexp_validate(self):
         # should be able to create new ones with no problem
-        EmailEntry.create(email=u'sam@gmail.com')
+        EmailEntry.create(email='sam@gmail.com')
         with self.assertRaises(ValidationError):
-            EmailEntry.create(email=u'nobody_at_gmail.com')
+            EmailEntry.create(email='nobody_at_gmail.com')
 
     def test_doc_class(self):
         user = _create_user()
@@ -418,17 +414,17 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertTrue(user is user_by_name)
 
     def test_query_not_found(self):
-        self.assertIsNone(User.get(username=u'asdfasfdasfdsdf'))
+        self.assertIsNone(User.get(username='asdfasfdasfdsdf'))
 
     def test_schema_change(self):
-        username = u'test'
-        UserAfterChanges.collection.insert({'username': username})
+        username = 'test'
+        UserAfterChanges.collection.insert_one({'username': username})
         user = UserAfterChanges.get(username=username)
         self.assertTrue(user.lang, 'pt-PT')
 
     def test_mongodoc_update(self):
         user = _create_user()
-        new_username = u'new'
+        new_username = 'new'
         update_dict = {'username': new_username}
         user.update(update_dict)
         self.assertTrue(user.username == new_username)
@@ -443,7 +439,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     def test_list(self):
         users = []
         for i in range(0, 10):
-            users.append(_create_user(username=u'%s' % i))
+            users.append(_create_user(username='%s' % i))
         MongoSchema.clear_cache_and_init()
         users_from_db = User.list()
         for user in users_from_db:
@@ -452,7 +448,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
     def test_remove(self):
         users = []
         for i in range(0, 10):
-            users.append(_create_user(username=u'%s' % i))
+            users.append(_create_user(username='%s' % i))
         for user in users:
             user.remove()
         self.assertTrue(len(User.list()) == 0)
@@ -484,14 +480,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_reload(self):
         user = _create_user()
-        new_name = u'filmore'
-        db.user.update({'_id': user.id}, {'$set': {'username': new_name}})
+        new_name = 'filmore'
+        db.user.update_one({'_id': user.id}, {'$set': {'username': new_name}})
         self.assertFalse(new_name == user.username)
         user.reload()
         self.assertTrue(new_name == user.username)
 
     def test_cache_disabled(self):
-        user = UserWithCacheDisabled.create(username=u'nothing')
+        user = UserWithCacheDisabled.create(username='nothing')
         fetched_again = UserWithCacheDisabled.get(id=user.id)
         self.assertTrue(user is not fetched_again)
         UserWithCacheDisabled.enable_cache()
@@ -501,16 +497,16 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_schema_with_dict(self):
         data = {
-            u'$this.thing': u'that',
-            u'a.t': {
-                u'a.b': u'thing',
-                u'dudeman': {
-                    u'hello.world': u'nothing',
+            '$this.thing': 'that',
+            'a.t': {
+                'a.b': 'thing',
+                'dudeman': {
+                    'hello.world': 'nothing',
                 }
             },
         }
         list_data = [
-            {u'this.thing': u'that'}
+            {'this.thing': 'that'}
         ]
         tmp = SchemaWithDict.create(data=data, list_data=list_data)
         raw = SchemaWithDict.collection.find_one({'_id': tmp.id})
@@ -522,9 +518,9 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             MongoSchema._unfix_dict_keys(raw['list_data']) == list_data)
         self.assertTrue(type(tmp.data) is dict)
         new_data = {
-            u'hello': u'world',
-            u'dudeman': {
-                u'h.w': u'nothing',
+            'hello': 'world',
+            'dudeman': {
+                'h.w': 'nothing',
             }
         }
         tmp.data = new_data
@@ -535,7 +531,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             MongoSchema._unfix_dict_keys(raw['data']) == new_data, new_data)
 
     def test_del(self):
-        fieldval = u'nothing'
+        fieldval = 'nothing'
         doc = WithOptionalField.create(field=fieldval)
         self.assertEqual(fieldval, doc.field)
         del doc['field']
@@ -548,7 +544,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
 
     def test_update_single_field(self):
         user = _create_user()
-        new_username = u'new_username'
+        new_username = 'new_username'
         user.username = new_username
         user.update_single_field('username', new_username)
         raw_user = User.collection.find_one({'_id': user.id})
@@ -556,9 +552,9 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertEqual(raw_user['username'], new_username)
 
     def test_lazy_loading(self):
-        referenced = Referenced.create(nothing=u'nothing')
+        referenced = Referenced.create(nothing='nothing')
         referencer = Referencer.create(referenced=referenced)
-        self.assertEqual(referencer.referenced.nothing, u'nothing')
+        self.assertEqual(referencer.referenced.nothing, 'nothing')
         referenced.referencer = referencer
         referenced.save()
         self.assertEqual(referenced.referencer.id, referencer.id)
@@ -606,7 +602,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
         self.assertEqual(username, user.username)
 
     def _test_vanilla_list(self, user):
-        user2 = _create_user(username=u'u2')
+        user2 = _create_user(username='u2')
         all_users = self._execute_request(User.path_for())
         self.assertEqual(len(all_users), 2)
         self.assertEqual(all_users[0]['id'], str(user.id))
@@ -619,7 +615,7 @@ class MongoSchemaFlaskTest(unittest.TestCase):
         self._test_vanilla_list(user)
 
     def test_create(self):
-        data = {'username': u'great_user'}
+        data = {'username': 'great_user'}
         path = User.path_for()
         reply = self._execute_request(path, data=data, method='post')
         # need to test if _custom was appended because a custom function
@@ -629,13 +625,13 @@ class MongoSchemaFlaskTest(unittest.TestCase):
     def test_vanilla_patch(self):
         user = _create_user()
         path = User.doc_path_for(oid=user.id)
-        data = {'username': u'new_username'}
+        data = {'username': 'new_username'}
         reply = self._execute_request(path, data=data, method='patch')
         self.assertTrue(reply['username'], data['username'])
 
     def test_custom_patch(self):
         user = _create_user()
-        new_username = u'u2'
+        new_username = 'u2'
         data = {'username': new_username}
         path = User.doc_path_for('set-username', oid=user.id)
         reply = self._execute_request(path, data=data, method='patch')
