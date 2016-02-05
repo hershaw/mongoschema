@@ -569,6 +569,8 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
         if 'id' not in kwargs and not forquery:
             kwargs['_id'] = cls.schema['id'].default_func()
         elif 'id' in kwargs:
+            if type(kwargs['id']) is bytes:
+                kwargs['id'] = kwargs['id'].decode()
             kwargs['_id'] = cls.schema['id'].default_func(kwargs['id'])
             del kwargs['id']
 
