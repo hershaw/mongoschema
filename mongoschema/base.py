@@ -690,6 +690,12 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
             yield cls._fromdb(doc)
 
     @classmethod
+    def count(cls, **kwargs):
+        # re-reference it for the id
+        cls._mongodoc_to_id(kwargs)
+        return cls.collection.find(kwargs).count()
+
+    @classmethod
     def list(cls, sort=None, **kwargs):
         return [x for x in cls.find(sort=sort, **kwargs)]
 

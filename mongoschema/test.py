@@ -559,6 +559,14 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         referenced.save()
         self.assertEqual(referenced.referencer.id, referencer.id)
 
+    def test_count(self):
+        self.assertEqual(User.count(), 0)
+        username = 'aname'
+        _create_user(username)
+        self.assertEqual(User.count(), 1)
+        self.assertEqual(User.count(username='nothing'), 0)
+        self.assertEqual(User.count(username=username), 1)
+
 
 class MongoSchemaFlaskTest(unittest.TestCase):
 
