@@ -680,10 +680,10 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
                 query[key] = obj.id
 
     @classmethod
-    def find(cls, sort=None, **kwargs):
+    def find(cls, sort=None, limit=0, **kwargs):
         # re-reference it for the id
         cls._mongodoc_to_id(kwargs)
-        docs = cls.collection.find(kwargs)
+        docs = cls.collection.find(kwargs, limit=limit)
         if sort:
             docs.sort(*sort)
         for doc in docs:
