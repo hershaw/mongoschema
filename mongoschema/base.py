@@ -176,6 +176,9 @@ class MongoDoc(object):
         self.ms = ms
         self.doc = doc
 
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
     def __getattr__(self, key):
         mf = self.ms.schema[key]
         if type(mf) in LIST_TYPES:

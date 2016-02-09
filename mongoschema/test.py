@@ -567,6 +567,10 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         self.assertEqual(User.count(username='nothing'), 0)
         self.assertEqual(User.count(username=username), 1)
 
+    def test_subscriptable(self):
+        user = _create_user()
+        user['username']
+
 
 class MongoSchemaFlaskTest(unittest.TestCase):
 
