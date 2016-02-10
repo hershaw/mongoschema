@@ -452,7 +452,8 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
     def _validate_mongo_field(cls, key, doc, mf):
         if mf.required:
             if key not in doc:
-                raise RequiredNotFoundException(key)
+                raise RequiredNotFoundException(
+                    '{}.{}'.format(cls.__name__, key))
         elif key not in doc:
             # it's not required and it's not there. fuck it!
             return
