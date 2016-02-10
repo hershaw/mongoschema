@@ -337,6 +337,12 @@ class MongoSchemaWatcher(type):
         # cls._ensureindexes()
         # cls._initschema()
         cls._init()
+        if len(cls.__bases__) > 1:
+            raise ValueError(
+                'MongoSchema does not support multiple inheritance yet')
+        if cls.__name__ != 'MongoSchema':
+            schema_copy = copy.deepcopy(cls.__bases__[0].schema)
+            cls.schema.update(schema_copy)
         super(MongoSchemaWatcher, cls).__init__(name, bases, clsdict)
 
 
