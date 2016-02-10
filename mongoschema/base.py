@@ -336,13 +336,18 @@ class MongoSchemaWatcher(type):
     def __init__(cls, name, bases, clsdict):
         # cls._ensureindexes()
         # cls._initschema()
-        cls._init()
         if len(cls.__bases__) > 1:
             raise ValueError(
                 'MongoSchema does not support multiple inheritance yet')
         if cls.__name__ != 'MongoSchema':
-            schema_copy = copy.deepcopy(cls.__bases__[0].schema)
+            superclass = cls.__bases__[0]
+            if superclass.abstract:
+                # Cant be abstract if your superclass is
+                cls.abstract = False
+            schema_copy = copy.deepcopy(superclass.schema)
             cls.schema.update(schema_copy)
+            cls.indexes += superclass.indexes
+        cls._init()
         super(MongoSchemaWatcher, cls).__init__(name, bases, clsdict)
 
 
@@ -350,6 +355,7 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
 
     _doc_auth_func = None
     _static_auth_func = None
+    abstract = False
 
     collection = None
     schema = {
@@ -367,9 +373,10 @@ class MongoSchema(object, metaclass=MongoSchemaWatcher):
 
     @classmethod
     def _init(cls):
-        cls._ensureindexes()
-        cls._initschema()
-        cls.cache = {}
+        if not cls.abstract:
+            cls._ensureindexes()
+            cls._initschema()
+            cls.cache = {}
 
     @classmethod
     def api_path_scheme(cls):

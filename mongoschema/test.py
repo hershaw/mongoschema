@@ -20,6 +20,24 @@ TEST_DB_NAME = os.environ['TEST_DB_NAME']
 db = conn[TEST_DB_NAME]
 
 
+class Simpleton(MongoSchema):
+    # must set abstract=True so MongoSchema knows that others will
+    # be inheriting from you
+    abstract = True
+    schema = {
+        'simple': MF(str),
+    }
+    indexes = ['simple']
+
+
+class Smarter(Simpleton):
+    collection = db.smarter
+    schema = {
+        'smart': MF(str),
+    }
+    indexes = ['smart']
+
+
 class Referencer(MongoSchema):
     collection = db.referencer
     schema = {
@@ -122,9 +140,7 @@ class Farmer(User):
     }
     schema.update(User.schema)
 
-    indexes = User.indexes + [
-        'farm_name'
-    ]
+    indexes = ['farm_name']
 
 
 class UserWithOptionalReference(MongoSchema):
@@ -367,7 +383,13 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
             with_list_2.save()
 
     def test_doc_inheritence(self):
-        pass
+        self.assertEqual(len(Smarter.indexes), 2)
+        self.assertTrue('simple' in Smarter.schema)
+        self.assertTrue('smart' in Smarter.schema)
+        smart = Smarter.create(simple='no', smart='yes')
+        self.assertEqual(smart.simple, 'no')
+        self.assertEqual(smart.smart, 'yes')
+        self._compare_indexes(Smarter)
 
     def _create_farmer(self):
         farmer = Farmer.create(
@@ -386,7 +408,7 @@ class MongoSchemaBaseTestCase(unittest.TestCase):
         mongo_indexes = ms.collection.index_information()
         defined_indexes = ms.indexes
         # need to add one because you always have _id
-        self.assertTrue(len(mongo_indexes) == len(defined_indexes) + 1)
+        self.assertEqual(len(mongo_indexes), len(defined_indexes) + 1)
 
     def test_ensure_indexes(self):
         """
