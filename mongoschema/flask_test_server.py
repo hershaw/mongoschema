@@ -2,8 +2,8 @@
 from flask import Flask, request
 
 # from this project
-from mongoschema.test import User, EmailEntry
-from mongoschema.base import register_flask_app, AuthError
+from test import User, EmailEntry
+from base import register_flask_app, AuthError
 
 app = Flask(__name__)
 

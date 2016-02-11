@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 import pymongo
 import requests
 
-from mongoschema.base import (
+from base import (
     MongoSchema, MongoDoc, MongoField as MF, ValidationError, flaskprep,
     set_api_prefix,
 )
