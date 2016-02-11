@@ -6,4 +6,4 @@ services:
 # command to install dependencies
 install: "pip install -r pip-requirements.txt"
 # command to run tests
-script: bin/travis-tests.sh
+script: travis-tests.sh
