@@ -7,4 +7,4 @@ services:
 install: "pip install -r pip-requirements.txt"
 # command to run tests
 # script: "echo "I am here `pwd`"; ls -ltrh; ./travis-tests.sh"
-script: ls -ltrh
+script: ./travis-tests.sh
