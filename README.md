@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/hershaw/mongoschema.svg?branch=master)](https://travis-ci.org/hershaw/mongoschema)
+
 # mongoschema
 Super lightweight python MongoDB ORM built on top of pymongo using raw python types
 
