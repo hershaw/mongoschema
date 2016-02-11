@@ -323,7 +323,7 @@ class MongoField(object):
             return self.default
 
     def has_default(self):
-        return self.default is not NoDefault
+        return self.default is not NoDefault or self.default_func is not None
 
 
 class MongoSchemaWatcher(type):
